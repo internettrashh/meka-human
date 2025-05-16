@@ -1,0 +1,1 @@
+export { HeroArea } from "./HeroArea";
