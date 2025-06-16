@@ -28,39 +28,51 @@ export const LatestNews = () => {
   
     return (
       <>
-        <section className="relative w-full max-w-[1440px] h-[584px] bg-[#fcee0a]">
-          <div className="h-[584px] bg-[url(/bg-elements.svg)] relative bg-[100%_100%]">
-            <h1 className="absolute top-[63px] left-[60px] font-bold text-[#ff003c] text-[80px] tracking-[0] leading-[normal] font-['Space_Grotesk',Helvetica]">
-              LATEST NEWS
-            </h1>
-    
-            <div className="flex gap-5 absolute top-[166px] left-[60px]">
-              {newsCards.map((card) => (
-                <Card
-                  key={card.id}
-                  className="w-[427px] h-[297px] bg-[url(/frame-5.svg)] bg-[100%_100%] border-0 relative"
-                >
-                  <CardContent className="p-0">
-                    <img
-                      className="w-[417px] h-[197px] mt-1.5 ml-1.5 object-cover"
-                      alt="Meka Human"
-                      src={card.image}
-                    />
-                    <p className="absolute w-[389px] top-[218px] left-5 font-semibold text-white text-[15px] tracking-[0] leading-[normal] font-['Open_Sans',Helvetica]">
-                      {card.content}
-                    </p>
-                  </CardContent>
-                </Card>
-              ))}
+        <section className="relative w-full min-h-[584px] bg-[#fcee0a]">
+          <div className="relative min-h-[584px] bg-[url(/bg-elements.svg)] bg-cover bg-center">
+            
+            {/* Content Container - Centered with max width */}
+            <div className="w-full flex justify-center py-16 sm:py-20 lg:py-24">
+              <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-[1440px]">
+                
+                {/* Title */}
+                <h1 className="font-bold text-[#ff003c] text-4xl sm:text-5xl md:text-6xl lg:text-7xl xl:text-[80px] tracking-[0] leading-normal font-['Space_Grotesk',Helvetica] mb-8 lg:mb-12">
+                  LATEST NEWS
+                </h1>
+        
+                {/* News Cards Container */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 lg:gap-6">
+                  {newsCards.map((card) => (
+                    <Card
+                      key={card.id}
+                      className="w-full max-w-[427px] h-[297px] bg-[url(/frame-5.svg)] bg-cover bg-center border-0 relative mx-auto"
+                    >
+                      <CardContent className="p-0">
+                        <img
+                          className="w-[calc(100%-10px)] h-[197px] mt-1.5 ml-1.5 object-cover rounded-t-lg"
+                          alt="Meka Human"
+                          src={card.image}
+                        />
+                        <p className="absolute w-[calc(100%-40px)] top-[218px] left-5 font-semibold text-white text-sm sm:text-[15px] tracking-[0] leading-normal font-['Open_Sans',Helvetica]">
+                          {card.content}
+                        </p>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+
+              </div>
             </div>
 
           </div>
+          
+          {/* Full Width Section Separator */}
           <img
-  className="w-full h-[27px] relative -top-3"
-  style={{ transform: 'rotate(180deg)' }}
-  alt="Section separator"
-  src="/section-seperator.svg"
-/>
+            className="w-full h-[27px] object-cover object-center"
+            style={{ transform: 'rotate(180deg)' }}
+            alt="Section separator"
+            src="/section-seperator.svg"
+          />
         </section>
 
        
