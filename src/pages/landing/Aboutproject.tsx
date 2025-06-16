@@ -181,8 +181,8 @@ export const About = () => {
   ];
 
   return (
-    <section className="relative w-full min-h-screen bg-[#fcee0a]">
-      <div className="relative min-h-screen bg-[url(/bg-elements.svg)] bg-cover bg-center">
+    <section className="relative w-full h-auto bg-[#fcee0a]">
+      <div className="relative h-auto bg-[url(/bg-elements.svg)] bg-cover bg-center">
         {/* Full Width Section Separator */}
         <img
           className="w-full h-[27px] object-cover object-center"
@@ -250,23 +250,23 @@ export const About = () => {
 
 export const MekaIDs = () => {
   return (
-    <main className="relative w-full min-h-screen bg-[#121211] overflow-hidden">
-      <div className="relative min-h-screen">
+    <main className="relative w-full h-auto bg-[#121211] overflow-hidden">
+      <div className="relative h-auto py-16 sm:py-20 lg:py-24">
         {/* Background graphics with opacity */}
         <div className="absolute inset-0 opacity-10">
           <div className="relative h-full w-full">
             <img
-              className="absolute w-[601px] h-[802px] top-0 right-0 lg:right-[-50px] xl:right-[-100px]"
+              className="absolute w-[601px] h-[600px] top-0 right-0 lg:right-[-50px] xl:right-[-100px] object-cover"
               alt="Background graphic right"
               src="/group-4.png"
             />
             <img
-              className="absolute w-[572px] h-[802px] top-0 left-0"
+              className="absolute w-[572px] h-[600px] top-0 left-0 object-cover"
               alt="Background graphic left"
               src="/group-6.png"
             />
             <img
-              className="absolute w-[880px] h-[646px] top-[156px] left-1/2 transform -translate-x-1/2 lg:left-[280px] lg:transform-none"
+              className="absolute w-[880px] h-[500px] top-[50px] left-1/2 transform -translate-x-1/2 lg:left-[280px] lg:transform-none object-cover"
               alt="Background graphic center"
               src="/group-5.png"
             />
@@ -274,12 +274,12 @@ export const MekaIDs = () => {
         </div>
 
         {/* Main content layout */}
-        <div className="flex flex-col lg:flex-row min-h-screen">
+        <div className="flex flex-col lg:flex-row min-h-[600px]">
           {/* Left side - Image */}
           <div className="relative flex-1 order-2 lg:order-1">
             <div className="w-full h-[400px] lg:h-full flex items-center justify-center lg:justify-start">
               <img
-                className="w-full max-w-[981px] h-auto lg:h-[744px] lg:absolute lg:top-[62px] lg:left-0 object-cover"
+                className="w-full max-w-[981px] h-auto lg:h-[500px] lg:absolute lg:top-[62px] lg:left-0 object-cover"
                 alt="Meka characters"
                 src="/image.png"
               />
