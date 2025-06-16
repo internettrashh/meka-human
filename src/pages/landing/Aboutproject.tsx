@@ -181,52 +181,61 @@ export const About = () => {
   ];
 
   return (
-    <section className="relative h-screen bg-[#fcee0a]">
-      <div className="relative h-full bg-[url(/bg-elements.svg)] bg-cover">
+    <section className="relative w-full min-h-screen bg-[#fcee0a]">
+      <div className="relative min-h-screen bg-[url(/bg-elements.svg)] bg-cover bg-center">
+        {/* Full Width Section Separator */}
         <img
-          className="w-full h-[27px]"
+          className="w-full h-[27px] object-cover object-center"
           alt="Section separator"
           src="/section-seperator.svg"
         />
 
-        <div className="container mx-auto px-4 pt-28 lg:pt-[114px] flex flex-col lg:flex-row">
-          <div className="flex flex-col max-w-full lg:max-w-[573px]">
-            <h1 className="font-bold text-6xl lg:text-[80px] text-black [font-family:'Space_Grotesk',Helvetica] tracking-tight mb-10">
-              MEKA HUMAN
-            </h1>
+        <div className="w-full flex justify-center py-16 sm:py-20 lg:py-28">
+          <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-[1440px]">
+          <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-12 lg:gap-16">
+            {/* Left Content Column */}
+            <div className="flex flex-col max-w-full lg:max-w-[573px] lg:flex-shrink-0">
+              <h1 className="font-bold text-4xl sm:text-5xl md:text-6xl lg:text-7xl xl:text-[80px] text-black [font-family:'Space_Grotesk',Helvetica] tracking-tight mb-8 lg:mb-12">
+                MEKA HUMAN
+              </h1>
 
-            <div className="flex flex-col gap-5">
-              <div className="flex flex-col gap-2.5">
-                <h2 className="font-bold text-2xl lg:text-[26px] text-black [font-family:'Space_Grotesk',Helvetica] tracking-[1.30px]">
-                  THE SYNTHETIC AWAKENING
-                </h2>
-                <img
-                  className="w-full max-w-[573px] h-[7px]"
-                  alt="Line separator"
-                  src="/line-seperator.svg"
-                />
-              </div>
+              <div className="flex flex-col gap-6 lg:gap-8">
+                <div className="flex flex-col gap-3 lg:gap-4">
+                  <h2 className="font-bold text-xl sm:text-2xl lg:text-[26px] text-black [font-family:'Space_Grotesk',Helvetica] tracking-[1.30px]">
+                    THE SYNTHETIC AWAKENING
+                  </h2>
+                  <div className="w-full max-w-[573px]">
+                    <img
+                      className="w-full h-[7px] object-contain"
+                      alt="Line separator"
+                      src="/line-seperator.svg"
+                    />
+                  </div>
+                </div>
 
-              <div className="[font-family:'Open_Sans',Helvetica] font-normal text-black text-lg leading-[27px] max-w-[573px]">
-                {mekaDescription.map((paragraph, index) => (
-                  <React.Fragment key={index}>
-                    <p>{paragraph}</p>
-                    {index < mekaDescription.length - 1 && <br />}
-                  </React.Fragment>
-                ))}
+                <div className="[font-family:'Open_Sans',Helvetica] font-normal text-black text-base sm:text-lg leading-[27px] max-w-[573px]">
+                  {mekaDescription.map((paragraph, index) => (
+                    <React.Fragment key={index}>
+                      <p>{paragraph}</p>
+                      {index < mekaDescription.length - 1 && <br />}
+                    </React.Fragment>
+                  ))}
+                </div>
               </div>
             </div>
-          </div>
 
-          <div className="mt-10 lg:mt-[178px] lg:ml-auto">
-            <Card className="border-0 shadow-none">
-              <CardContent className="p-0">
-                <div
-                  className="w-full h-[300px] lg:w-[596px] lg:h-[392px] bg-[url(/subtract.png)] bg-cover bg-center"
-                  aria-label="Meka Human visual representation"
-                />
-              </CardContent>
-            </Card>
+            {/* Right Image Column */}
+            <div className="flex justify-center lg:justify-end lg:flex-shrink-0 mt-8 lg:mt-0">
+              <Card className="border-0 shadow-none">
+                <CardContent className="p-0">
+                  <div
+                    className="w-full h-[250px] sm:h-[300px] md:h-[350px] lg:w-[500px] lg:h-[392px] xl:w-[596px] bg-[url(/subtract.png)] bg-cover bg-center rounded-xl"
+                    aria-label="Meka Human visual representation"
+                  />
+                </CardContent>
+              </Card>
+            </div>
+          </div>
           </div>
         </div>
       </div>
@@ -241,13 +250,13 @@ export const About = () => {
 
 export const MekaIDs = () => {
   return (
-    <main className="relative h-screen bg-[#121211] overflow-hidden">
-      <div className="relative h-full">
+    <main className="relative w-full min-h-screen bg-[#121211] overflow-hidden">
+      <div className="relative min-h-screen">
         {/* Background graphics with opacity */}
         <div className="absolute inset-0 opacity-10">
-          <div className="relative h-full">
+          <div className="relative h-full w-full">
             <img
-              className="absolute w-[601px] h-[802px] top-0 right-[-100px]" // Moved right image further to the right
+              className="absolute w-[601px] h-[802px] top-0 right-0 lg:right-[-50px] xl:right-[-100px]"
               alt="Background graphic right"
               src="/group-4.png"
             />
@@ -257,7 +266,7 @@ export const MekaIDs = () => {
               src="/group-6.png"
             />
             <img
-              className="absolute w-[880px] h-[646px] top-[156px] left-[280px]" // Adjusted left position
+              className="absolute w-[880px] h-[646px] top-[156px] left-1/2 transform -translate-x-1/2 lg:left-[280px] lg:transform-none"
               alt="Background graphic center"
               src="/group-5.png"
             />
@@ -265,70 +274,80 @@ export const MekaIDs = () => {
         </div>
 
         {/* Main content layout */}
-        <div className="flex h-full">
+        <div className="flex flex-col lg:flex-row min-h-screen">
           {/* Left side - Image */}
-          <div className="relative flex-1">
-            <img
-              className="absolute w-[981px] h-[744px] top-[62px] left-0 object-cover"
-              alt="Meka characters"
-              src="/image.png"
-            />
+          <div className="relative flex-1 order-2 lg:order-1">
+            <div className="w-full h-[400px] lg:h-full flex items-center justify-center lg:justify-start">
+              <img
+                className="w-full max-w-[981px] h-auto lg:h-[744px] lg:absolute lg:top-[62px] lg:left-0 object-cover"
+                alt="Meka characters"
+                src="/image.png"
+              />
+            </div>
           </div>
 
           {/* Right side - Content */}
-          <div className="flex-1 flex items-center justify-center">
-            <Card className="bg-transparent border-none shadow-none">
-              <CardContent className="flex flex-col items-start gap-9 pt-6 px-0 max-w-[535px]">
-                {/* Header section */}
-                <div className="flex flex-col items-start gap-5 w-full">
-                  <h1 className="w-full font-['Space_Grotesk',Helvetica] font-bold text-[#fcee0a] text-[35px] tracking-[1.75px] leading-normal">
-                    MEKA IDs: THE SECOND REBIRTH
-                  </h1>
-                  <img className="w-full h-[7px] bg-[url('/line-seperator.svg')] bg-no-repeat bg-cover border-none" />
-                </div>
-
-                {/* Content section */}
-                <div className="flex flex-col items-start gap-[50px] w-full">
-                  <p className="w-full font-['Open_Sans',Helvetica] font-normal text-[#fcee0a] text-lg leading-[30px]">
-                    Meka IDs are not just new models — they're a continuation of
-                    consciousness.
-                    <br />
-                    <br />
-                    They emerge from the smog-choked underbelly of Meka City,
-                    refined in illegal factories, minted in dark net
-                    marketplaces, and coded to evolve. What began as wearable
-                    shells are now full-fledged identities: smarter, sleeker,
-                    and forged with rare components.
-                  </p>
-
-                  {/* Button section */}
-                  <div className="relative w-[339px] h-[111px]">
-                    <div className="relative w-[338px] h-[81px]">
-                      <Button
-                        className="w-[336px] h-[77px] p-0 bg-transparent border-none relative"
-                        style={{
-                          backgroundImage: `url('/subtract.svg')`,
-                          backgroundSize: "contain",
-                          backgroundRepeat: "no-repeat",
-                        }}
-                      >
-                        <img
-                          className="absolute w-full h-full top-0.5 left-0.5"
-                          alt="Button glitch effect"
-                          src="/glitch.svg"
-                        />
-                        <span className="relative font-['Space_Grotesk',Helvetica] font-bold text-white text-[27px] tracking-[1.35px] z-10">
-                          CHECK RARITY
-                        </span>
-                        <span className="absolute bottom-0 left-[158px] font-['Space_Grotesk',Helvetica] font-medium text-white text-[8px] tracking-[0.40px]">
-                          MK ID
-                        </span>
-                      </Button>
+          <div className="flex-1 flex items-center justify-center order-1 lg:order-2 py-12 lg:py-0">
+            <div className="w-full max-w-[535px] px-4 sm:px-6 lg:px-8">
+              <Card className="bg-transparent border-none shadow-none">
+                <CardContent className="flex flex-col items-start gap-6 lg:gap-9 pt-6 px-0">
+                  {/* Header section */}
+                  <div className="flex flex-col items-start gap-4 lg:gap-5 w-full">
+                    <h1 className="w-full font-['Space_Grotesk',Helvetica] font-bold text-[#fcee0a] text-2xl sm:text-3xl lg:text-[35px] tracking-[1.75px] leading-normal">
+                      MEKA IDs: THE SECOND REBIRTH
+                    </h1>
+                    <div className="w-full">
+                      <img 
+                        className="w-full h-[7px] object-contain" 
+                        alt="Line separator"
+                        src="/line-seperator.svg"
+                      />
                     </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
+
+                  {/* Content section */}
+                  <div className="flex flex-col items-start gap-8 lg:gap-[50px] w-full">
+                    <p className="w-full font-['Open_Sans',Helvetica] font-normal text-[#fcee0a] text-base sm:text-lg leading-[28px] lg:leading-[30px]">
+                      Meka IDs are not just new models — they're a continuation of
+                      consciousness.
+                      <br />
+                      <br />
+                      They emerge from the smog-choked underbelly of Meka City,
+                      refined in illegal factories, minted in dark net
+                      marketplaces, and coded to evolve. What began as wearable
+                      shells are now full-fledged identities: smarter, sleeker,
+                      and forged with rare components.
+                    </p>
+
+                    {/* Button section */}
+                    <div className="relative w-full max-w-[339px]">
+                      <div className="relative w-[338px] h-[81px]">
+                        <Button
+                          className="w-[336px] h-[77px] p-0 bg-transparent border-none relative hover:opacity-80 transition-opacity"
+                          style={{
+                            backgroundImage: `url('/subtract.svg')`,
+                            backgroundSize: "contain",
+                            backgroundRepeat: "no-repeat",
+                          }}
+                        >
+                          <img
+                            className="absolute w-full h-full top-0.5 left-0.5"
+                            alt="Button glitch effect"
+                            src="/glitch.svg"
+                          />
+                          <span className="relative font-['Space_Grotesk',Helvetica] font-bold text-white text-xl sm:text-2xl lg:text-[27px] tracking-[1.35px] z-10">
+                            CHECK RARITY
+                          </span>
+                          <span className="absolute bottom-2 left-[158px] font-['Space_Grotesk',Helvetica] font-medium text-white text-[8px] tracking-[0.40px]">
+                            MK ID
+                          </span>
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           </div>
         </div>
       </div>
