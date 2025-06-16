@@ -1,4 +1,4 @@
-// Utility function to get the target countdown date: 23rd at 17:00 UTC
+// Utility function to get the target countdown date: Monday 23rd at 17:00 UTC
 export const getCountdownTargetDate = (): Date => {
   const now = new Date();
   const currentYear = now.getUTCFullYear();
@@ -10,6 +10,14 @@ export const getCountdownTargetDate = (): Date => {
   // If the 23rd of current month has already passed, use next month
   if (now.getTime() > targetDate.getTime()) {
     targetDate = new Date(Date.UTC(currentYear, currentMonth + 1, 23, 17, 0, 0));
+  }
+  
+  // Ensure it's a Monday (day 1) - if not, find the next Monday
+  const dayOfWeek = targetDate.getUTCDay();
+  if (dayOfWeek !== 1) { // 1 = Monday
+    // Calculate days to add to get to next Monday
+    const daysToAdd = dayOfWeek === 0 ? 1 : (8 - dayOfWeek); // If Sunday (0), add 1, else add days to next Monday
+    targetDate.setUTCDate(targetDate.getUTCDate() + daysToAdd);
   }
   
   return targetDate;

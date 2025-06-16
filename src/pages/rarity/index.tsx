@@ -1,5 +1,6 @@
 import { Background } from '@/components/background'
 import { useState, useEffect } from 'react'
+import { getCountdownTargetDate, calculateTimeRemaining } from '@/utils/countdown'
 
 // Countdown component for Phase 2
 const Phase2CountdownTimer = () => {
@@ -11,24 +12,16 @@ const Phase2CountdownTimer = () => {
   });
 
   useEffect(() => {
-    // Set target date to 6 days from now
-    const targetDate = new Date();
-    targetDate.setDate(targetDate.getDate() + 6);
+    const targetDate = getCountdownTargetDate();
 
     const timer = setInterval(() => {
-      const now = new Date().getTime();
-      const distance = targetDate.getTime() - now;
-
-      if (distance > 0) {
-        setTimeLeft({
-          days: Math.floor(distance / (1000 * 60 * 60 * 24)),
-          hours: Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)),
-          minutes: Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60)),
-          seconds: Math.floor((distance % (1000 * 60)) / 1000)
-        });
-      } else {
-        setTimeLeft({ days: 0, hours: 0, minutes: 0, seconds: 0 });
-      }
+      const timeRemaining = calculateTimeRemaining(targetDate);
+      setTimeLeft({
+        days: timeRemaining.days,
+        hours: timeRemaining.hours,
+        minutes: timeRemaining.minutes,
+        seconds: timeRemaining.seconds
+      });
     }, 1000);
 
     return () => clearInterval(timer);
