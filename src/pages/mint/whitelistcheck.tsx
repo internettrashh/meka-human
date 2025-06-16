@@ -21,6 +21,7 @@ const useScrambleText = (text: string, isActive: boolean) => {
       setScrambledText((current) =>
         current
           .split("")
+        //@ts-ignore
           .map((char, index) => {
             if (index < iteration) {
               return text[index];
