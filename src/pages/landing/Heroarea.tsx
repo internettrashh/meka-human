@@ -1,4 +1,5 @@
 import React from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "../../components/ui/card";
 import { TextScramble } from "../../components/ui/text-scramble";
 
@@ -9,6 +10,12 @@ const featureList = [
 ];
 
 export const HeroArea = () => {
+  const navigate = useNavigate();
+
+  const handleCheckEligibility = () => {
+    navigate('/mint');
+  };
+
   return (
     <div className="relative w-full max-w-[1440px] h-[899px] bg-[#121211] overflow-hidden">
       <div className="relative w-[1774px] h-[900px] left-[-182px]">
@@ -39,9 +46,12 @@ export const HeroArea = () => {
         />
 
         <div>
-          <Card className="absolute w-[339px] h-[111px] top-[711px] left-[749px] border-none bg-transparent">
+          <Card 
+            className="absolute w-[339px] h-[111px] top-[711px] left-[749px] border-none bg-transparent cursor-pointer hover:opacity-80 transition-opacity"
+            onClick={handleCheckEligibility}
+          >
             <CardContent className="p-0">
-              <div className="absolute top-[91px] left-[74px] font-['Advent_Pro',Helvetica] font-bold text-white text-base tracking-[0.80px] leading-normal whitespace-nowrap">
+              <div className="absolute top-[91px] left-[44px] font-['Advent_Pro',Helvetica] font-bold text-white text-base tracking-[0.80px] leading-normal whitespace-nowrap">
                 <TextScramble text="WHITELIST CHECKER IS LIVE!" />
               </div>
               <div className="absolute w-[338px] h-[81px] top-0 left-0">
@@ -58,7 +68,7 @@ export const HeroArea = () => {
                   alt="Subtract"
                   src="/subtract.svg"
                 />
-                <div className="absolute top-[22px] left-[68px] font-['Advent_Pro',Helvetica] font-bold text-white text-[27px] tracking-[1.35px] leading-normal whitespace-nowrap">
+                <div className="absolute top-[22px] left-[28px] font-['Advent_Pro',Helvetica] font-bold text-white text-[27px] tracking-[1.35px] leading-normal whitespace-nowrap">
                   <TextScramble text="CHECK ELIGIBILITY" hover={true} />
                 </div>
               </div>

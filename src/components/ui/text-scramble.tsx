@@ -11,7 +11,7 @@ const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz!<>-_\\/
 export const TextScramble: React.FC<TextScrambleProps> = ({ text, className = '', hover = false }) => {
   const [displayText, setDisplayText] = useState(text);
   const [isHovered, setIsHovered] = useState(false);
-  const frameRequest = useRef<number>();
+  const frameRequest = useRef<number | undefined>(undefined);
   const frame = useRef(0);
   const queue = useRef<{ from: string; to: string; start: number; end: number; char?: string }[]>([]);
 
@@ -25,7 +25,7 @@ export const TextScramble: React.FC<TextScrambleProps> = ({ text, className = ''
 
   const setQueue = (newText: string) => {
     const oldText = displayText;
-    const length = Math.max(oldText.length, newText.length);
+    const length = newText.length;
     queue.current = [];
     for (let i = 0; i < length; i++) {
       const from = oldText[i] || '';
