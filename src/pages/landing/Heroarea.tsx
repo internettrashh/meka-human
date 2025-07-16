@@ -54,7 +54,7 @@ export const HeroArea = () => {
             >
               <CardContent className="p-0">
                 <div className="absolute top-[91px] left-[44px] font-['Advent_Pro',Helvetica] font-bold text-white text-base tracking-[0.80px] leading-normal whitespace-nowrap">
-                  <TextScramble text="WHITELIST CHECKER IS LIVE!" />
+                  <TextScramble text="MEKA NFT MINTING IS LIVE!" />
                 </div>
                 <div className="absolute w-[338px] h-[81px] top-0 left-0">
                   <div className="absolute top-[71px] left-[161px] font-['Advent_Pro',Helvetica] font-medium text-white text-[8px] tracking-[0.40px] leading-normal">
@@ -70,8 +70,8 @@ export const HeroArea = () => {
                     alt="Subtract"
                     src="/subtract.svg"
                   />
-                  <div className="absolute top-[22px] left-[28px] font-['Advent_Pro',Helvetica] font-bold text-white text-[27px] tracking-[1.35px] leading-normal whitespace-nowrap">
-                    <TextScramble text="CHECK ELIGIBILITY" hover={true} />
+                  <div className="absolute top-[22px] left-[85px] font-['Advent_Pro',Helvetica] font-bold text-white text-[27px] tracking-[1.35px] leading-normal whitespace-nowrap">
+                    <TextScramble text="MINT NOW" hover={true} />
                   </div>
                 </div>
               </CardContent>

@@ -8,6 +8,8 @@ import WanderStrategy from "@arweave-wallet-kit/wander-strategy";
 import OthentStrategy from "@arweave-wallet-kit/othent-strategy";
 import BrowserWalletStrategy from "@arweave-wallet-kit/browser-wallet-strategy";
 import WebWalletStrategy from "@arweave-wallet-kit/webwallet-strategy";
+import { ArweaveProvider } from "./providers/ArweaveProvider";
+import { PermawebProvider } from "./providers/PermawebProvider";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
@@ -28,9 +30,13 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
         ],
       }}
     >
-      <BrowserRouter>
-        <App />
-      </BrowserRouter>
+      <ArweaveProvider>
+        <PermawebProvider>
+          <BrowserRouter>
+            <App />
+          </BrowserRouter>
+        </PermawebProvider>
+      </ArweaveProvider>
     </ArweaveWalletKit>
   </React.StrictMode>
 ); 

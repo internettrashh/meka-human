@@ -5,12 +5,14 @@ import RarityPage from "./pages/rarity";
 import MekacityPage from "./pages/mekacity";
 import SocialsPage from "./pages/socials";
 import WhitelistCheck from "./pages/mint/whitelistcheck";
+import MintSuccessPage from "./pages/mint/success";
 function App() {
   return (
     <Layout>
       <Routes>
         <Route path="/" element={<Landing />} />
         <Route path="/mint" element={<WhitelistCheck />} />
+        <Route path="/mint/success" element={<MintSuccessPage />} />
         <Route path="/rarity" element={<RarityPage />} />
         <Route path="/mekacity" element={<MekacityPage />} />
         <Route path="/socials" element={<SocialsPage />} />

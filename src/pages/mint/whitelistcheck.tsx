@@ -1,9 +1,20 @@
 import { Background } from '@/components/background'
 import { Card, CardContent } from '@/components/ui/card'
-import { checkElig } from '@/actions/checkelig'
 import { useConnection, useActiveAddress } from '@arweave-wallet-kit/react'
-import { useState, useEffect } from 'react'
-import { getCountdownTargetDate, calculateTimeRemaining } from '@/utils/countdown'
+import { useState, useEffect, useCallback } from 'react'
+import { 
+  checkMintEligibility, 
+  startMinting, 
+  getMintStatus, 
+  getMintedAssets,
+  type EligibilityResponse,
+  type MintStartResponse,
+  type MintStatusResponse,
+  type MintedAssetsResponse 
+} from '@/actions/mint'
+import { useNavigate } from 'react-router-dom'
+import { usePermawebProvider } from '@/providers/PermawebProvider'
+import { ExternalLink } from 'lucide-react'
 
 // Scramble text effect hook
 const useScrambleText = (text: string, isActive: boolean) => {
@@ -21,7 +32,6 @@ const useScrambleText = (text: string, isActive: boolean) => {
       setScrambledText((current) =>
         current
           .split("")
-        //@ts-ignore
           .map((char, index) => {
             if (index < iteration) {
               return text[index];
@@ -41,233 +51,637 @@ const useScrambleText = (text: string, isActive: boolean) => {
   return scrambledText;
 };
 
-// Countdown component
-const CountdownTimer = () => {
-  const [timeLeft, setTimeLeft] = useState({
-    days: 0,
-    hours: 0,
-    minutes: 0,
-    seconds: 0
-  });
-
-  useEffect(() => {
-    const targetDate = getCountdownTargetDate();
-
-    const timer = setInterval(() => {
-      const timeRemaining = calculateTimeRemaining(targetDate);
-      setTimeLeft({
-        days: timeRemaining.days,
-        hours: timeRemaining.hours,
-        minutes: timeRemaining.minutes,
-        seconds: timeRemaining.seconds
-      });
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, []);
+// Progress bar component
+const ProgressBar = ({ current, total }: { current: number; total: number }) => {
+  // Ensure percentage never exceeds 100% and handle edge cases
+  const safeTotal = Math.max(total, 1); // Prevent division by zero
+  const safeCurrent = Math.min(Math.max(current, 0), safeTotal); // Clamp between 0 and total
+  const percentage = Math.min((safeCurrent / safeTotal) * 100, 100); // Cap at 100%
 
   return (
-    <div className="flex items-center justify-center space-x-4 text-[#fcee0a] font-mono text-lg">
-      <div className="text-center">
-        <div className="text-2xl font-bold">{timeLeft.days.toString().padStart(2, '0')}</div>
-        <div className="text-xs">DAYS</div>
+    <div className="w-full bg-gray-700 rounded-full h-2">
+      <div 
+        className="bg-[#fcee0a] h-2 rounded-full transition-all duration-500 ease-out"
+        style={{ width: `${percentage}%` }}
+      />
       </div>
-      <div className="text-2xl">:</div>
-      <div className="text-center">
-        <div className="text-2xl font-bold">{timeLeft.hours.toString().padStart(2, '0')}</div>
-        <div className="text-xs">HOURS</div>
+  );
+};
+
+// Quantity slider component with improved styling
+const QuantitySlider = ({ 
+  max, 
+  value, 
+  onChange 
+}: { 
+  max: number; 
+  value: number; 
+  onChange: (value: number) => void 
+}) => {
+  const percentage = ((value - 1) / (max - 1)) * 100;
+  
+  return (
+    <div className="flex flex-col items-center space-y-4 w-full">
+      <div className="flex items-center justify-between w-full text-[#fcee0a]">
+        <span className="text-sm font-medium">Quantity:</span>
+        <span className="text-lg font-bold">{value}</span>
       </div>
-      <div className="text-2xl">:</div>
-      <div className="text-center">
-        <div className="text-2xl font-bold">{timeLeft.minutes.toString().padStart(2, '0')}</div>
-        <div className="text-xs">MINS</div>
+      
+      <div className="relative w-full">
+        <input
+          type="range"
+          min="1"
+          max={max}
+          value={value}
+          onChange={(e) => onChange(parseInt(e.target.value))}
+          className="slider w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer relative z-10"
+        />
+        
+        {/* Custom track background */}
+        <div className="absolute top-1/2 left-0 w-full h-2 bg-gray-700 rounded-lg -translate-y-1/2 pointer-events-none">
+          <div 
+            className="h-full bg-[#fcee0a] rounded-lg transition-all duration-200 ease-out"
+            style={{ width: `${percentage}%` }}
+          />
+        </div>
       </div>
-      <div className="text-2xl">:</div>
-      <div className="text-center">
-        <div className="text-2xl font-bold">{timeLeft.seconds.toString().padStart(2, '0')}</div>
-        <div className="text-xs">SECS</div>
+      
+      <div className="flex justify-between w-full text-xs text-gray-400">
+        <span>1</span>
+        <span>{max}</span>
+      </div>
+      
+      <style dangerouslySetInnerHTML={{
+        __html: `
+          .slider {
+            background: transparent;
+          }
+          
+          .slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            height: 20px;
+            width: 20px;
+            border-radius: 50%;
+            background: #fcee0a;
+            cursor: pointer;
+            border: 2px solid #000;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+            position: relative;
+            z-index: 20;
+            transition: all 0.2s ease;
+          }
+          
+          .slider::-webkit-slider-thumb:hover {
+            transform: scale(1.1);
+            box-shadow: 0 3px 8px rgba(252, 238, 10, 0.3);
+          }
+          
+          .slider::-moz-range-thumb {
+            height: 18px;
+            width: 18px;
+            border-radius: 50%;
+            background: #fcee0a;
+            cursor: pointer;
+            border: 2px solid #000;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+            -moz-appearance: none;
+            position: relative;
+            z-index: 20;
+            transition: all 0.2s ease;
+          }
+          
+          .slider::-moz-range-thumb:hover {
+            transform: scale(1.1);
+            box-shadow: 0 3px 8px rgba(252, 238, 10, 0.3);
+          }
+          
+          .slider::-webkit-slider-track {
+            background: transparent;
+            height: 8px;
+            border-radius: 4px;
+          }
+          
+          .slider::-moz-range-track {
+            background: transparent;
+            height: 8px;
+            border-radius: 4px;
+            border: none;
+          }
+          
+          .slider:focus {
+            outline: none;
+          }
+          
+          .slider:focus::-webkit-slider-thumb {
+            box-shadow: 0 0 0 3px rgba(252, 238, 10, 0.3);
+          }
+          
+          .slider:focus::-moz-range-thumb {
+            box-shadow: 0 0 0 3px rgba(252, 238, 10, 0.3);
+          }
+        `
+              }} />
+      </div>
+    );
+};
+
+// Simple NFT Grid Component
+interface MintedNFT {
+  assetBaseName: string;
+  assetId: string;
+  assetName: string;
+  transferSuccess: boolean;
+  transferId: string;
+  transactionUrl: string;
+}
+
+const NFTGrid = ({ nfts }: { nfts: MintedNFT[] }) => {
+  const [videoErrors, setVideoErrors] = useState<Set<string>>(new Set());
+  
+  const handleVideoError = (assetId: string) => {
+    setVideoErrors(prev => new Set([...prev, assetId]));
+  };
+
+  const openOnBazar = (assetId: string) => {
+    window.open(`https://bazar.ar.io/#/asset/${assetId}`, '_blank');
+  };
+
+  if (nfts.length === 0) return null;
+
+  return (
+    <div className="w-full">
+      <div className={`grid gap-3 sm:gap-4 ${
+        nfts.length === 1 ? 'grid-cols-1 justify-center max-w-sm sm:max-w-md mx-auto' :
+        nfts.length === 2 ? 'grid-cols-2 max-w-md sm:max-w-lg mx-auto' :
+        nfts.length === 3 ? 'grid-cols-3 max-w-lg sm:max-w-2xl mx-auto' :
+        nfts.length === 4 ? 'grid-cols-2 max-w-md sm:max-w-lg mx-auto' :
+        'grid-cols-3 sm:grid-cols-4 max-w-2xl sm:max-w-4xl mx-auto'
+      }`}>
+        {nfts.map((nft) => (
+          <div
+            key={nft.assetId}
+            onClick={() => openOnBazar(nft.assetId)}
+            className="relative aspect-square bg-gray-800 rounded-lg overflow-hidden border border-[#fcee0a]/30 shadow-lg shadow-[#fcee0a]/10 cursor-pointer group hover:border-[#fcee0a] transition-all duration-300"
+          >
+            {/* NFT Media */}
+            {!videoErrors.has(nft.assetId) ? (
+              <video
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                onError={() => handleVideoError(nft.assetId)}
+                autoPlay
+                loop
+                muted
+                playsInline
+                preload="auto"
+                controls={false}
+              >
+                <source src={`https://arweave.net/${nft.assetId}`} type="video/mp4" />
+                <source src={`https://arweave.net/${nft.assetId}`} type="video/webm" />
+                <source src={`https://arweave.net/${nft.assetId}`} type="video/ogg" />
+                Your browser does not support the video tag.
+              </video>
+            ) : (
+              /* Fallback for failed videos */
+              <div className="w-full h-full bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center">
+                <div className="text-center p-4">
+                  <div className="w-12 h-12 mx-auto mb-3 bg-[#fcee0a]/20 rounded-full flex items-center justify-center">
+                    <span className="text-[#fcee0a] text-lg font-bold">
+                      {nft.assetName.charAt(0)}
+                    </span>
+                  </div>
+                  <div className="text-white text-xs font-medium">
+                    {nft.assetName}
+                  </div>
+                  <div className="text-gray-400 text-xs mt-1">
+                    {nft.assetId.slice(0, 6)}...
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Hover Overlay */}
+            <div className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
+              <div className="text-center text-white">
+                <ExternalLink className="w-6 h-6 mx-auto mb-2 text-[#fcee0a]" />
+                <div className="text-xs font-medium">View on Bazar</div>
+              </div>
+            </div>
+
+            {/* Success Badge */}
+            {nft.transferSuccess && (
+              <div className="absolute top-2 right-2 bg-green-500 text-white text-xs px-2 py-1 rounded-full font-medium">
+                Minted
+              </div>
+            )}
+
+            {/* Asset Name */}
+            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-3">
+              <div className="text-white text-sm font-medium truncate">
+                {nft.assetName}
+              </div>
+              <div className="text-gray-300 text-xs">
+                {nft.assetId.slice(0, 8)}...
+              </div>
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );
 };
 
-function whitelistcheck() {
+type MintingState = 'idle' | 'checking-eligibility' | 'show-eligibility' | 'minting' | 'error' | 'not-eligible' | 'checking-mint-more' | 'not-eligible-mint-more';
+
+function MintingInterface() {
   const connected = useConnection();
   const activeAddress = useActiveAddress();
-  const [isChecking, setIsChecking] = useState(false);
-  const [eligibilityStatus, setEligibilityStatus] = useState<'idle' | 'checking' | 'eligible' | 'not-eligible' | 'error'>('idle');
+  const navigate = useNavigate();
+  const { getProfileIdFromWallet } = usePermawebProvider();
+  
+  // State management
+  const [state, setState] = useState<MintingState>('idle');
+  const [eligibility, setEligibility] = useState<EligibilityResponse | null>(null);
+  const [mintQuantity, setMintQuantity] = useState(1);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [mintProgress, setMintProgress] = useState<MintStatusResponse | null>(null);
   const [errorMessage, setErrorMessage] = useState('');
   
-  // Scramble effect for eligible text
-  const scrambledText = useScrambleText("YOU ARE ELIGIBLE TO MINT IN ", eligibilityStatus === 'eligible');
+  // Scramble effects
+  const scrambledEligibleText = useScrambleText("YOU CAN MINT", state === 'show-eligibility');
+  const scrambledMintingText = useScrambleText("MINTING IN PROGRESS", state === 'minting');
 
-  const handleCheckEligibility = async () => {
+  // Check eligibility function
+  const handleCheckEligibility = useCallback(async () => {
     if (!connected || !activeAddress) {
       setErrorMessage('Please connect your wallet to check eligibility.');
-      setEligibilityStatus('error');
+      setState('error');
       return;
     }
 
-    setIsChecking(true);
-    setEligibilityStatus('checking');
+    setState('checking-eligibility');
+    setErrorMessage('');
     
     try {
-      const result = await checkElig(activeAddress);
-      setEligibilityStatus(result ? 'eligible' : 'not-eligible');
-      setErrorMessage('');
-    } catch (error) {
-      setEligibilityStatus('error');
-      setErrorMessage('Error checking eligibility. Please try again.');
-    } finally {
-      setIsChecking(false);
+      const result = await checkMintEligibility(activeAddress);
+      
+      // Check if component is still mounted before updating state
+      setEligibility(result);
+      
+      if (result.success && result.eligibility.canMintMore) {
+        setState('show-eligibility');
+        setMintQuantity(Math.min(result.eligibility.remainingToMint, result.eligibility.maxBatchSize));
+      } else {
+        setState('not-eligible');
+      }
+    } catch (error: any) {
+      setErrorMessage(error.message || 'Error checking eligibility. Please try again.');
+      setState('error');
     }
+  }, [connected, activeAddress]);
+
+  // Check mint more eligibility function
+  const handleCheckMintMore = useCallback(async () => {
+    if (!connected || !activeAddress) {
+      setErrorMessage('Please connect your wallet to check eligibility.');
+      setState('error');
+      return;
+    }
+
+    setState('checking-mint-more');
+    setErrorMessage('');
+    
+    try {
+      const result = await checkMintEligibility(activeAddress);
+      
+      // Update state only if component is still mounted
+      setEligibility(result);
+      
+      if (result.success && result.eligibility.canMintMore) {
+        setState('show-eligibility');
+        setMintQuantity(Math.min(result.eligibility.remainingToMint, result.eligibility.maxBatchSize));
+      } else {
+        setState('not-eligible-mint-more');
+      }
+    } catch (error: any) {
+      setErrorMessage(error.message || 'Error checking eligibility. Please try again.');
+      setState('error');
+    }
+  }, [connected, activeAddress]);
+
+  // Start minting function
+  const handleStartMinting = useCallback(async () => {
+    if (!connected || !activeAddress || !eligibility) {
+      setErrorMessage('Wallet not connected or eligibility not checked.');
+      setState('error');
+      return;
+    }
+
+    setState('minting');
+      setErrorMessage('');
+    
+    try {
+      // Get the profile ID from the wallet address using Permaweb
+      const profileId = await getProfileIdFromWallet(activeAddress);
+      
+      if (!profileId) {
+        setErrorMessage('Could not get profile ID from wallet address. Please try again.');
+        setState('error');
+        return;
+      }
+      
+      console.log('Profile ID for minting:', profileId);
+      
+      const result = await startMinting(activeAddress, profileId, mintQuantity);
+      setSessionId(result.sessionId);
+      
+      // Start polling for status
+      pollMintingStatus(result.sessionId);
+    } catch (error: any) {
+      setErrorMessage(error.message || 'Error starting mint. Please try again.');
+      setState('error');
+    }
+  }, [connected, activeAddress, eligibility, mintQuantity, getProfileIdFromWallet]);
+
+  // Poll minting status
+  const pollMintingStatus = useCallback(async (sessionId: string) => {
+    const pollInterval = setInterval(async () => {
+      try {
+        const status = await getMintStatus(sessionId);
+        
+        // Debug logging for development (remove in production)
+        if (process.env.NODE_ENV === 'development') {
+          console.log('Mint Status Update:', {
+            status: status.status,
+            currentStep: status.currentStep,
+            stepsCount: status.steps?.length,
+            steps: status.steps?.map(s => ({ step: s.step, status: s.status, assetBaseName: s.assetBaseName }))
+          });
+        }
+        
+        setMintProgress(status);
+        
+        if (status.status === 'completed' || status.status === 'failed') {
+          clearInterval(pollInterval);
+          if (status.status === 'completed') {
+            // Navigate to success page with minted assets data
+            navigate('/mint/success', {
+              state: {
+                mintedAssets: status.result?.mintedAssets || [],
+                successfulMints: status.result?.batchResults.successfulMints || 0,
+                failedMints: status.result?.batchResults.failedMints || 0
+              }
+            });
+          } else {
+            setErrorMessage(status.error || 'Minting failed. Please try again.');
+            setState('error');
+          }
+        }
+      } catch (error: any) {
+        clearInterval(pollInterval);
+        setErrorMessage('Error checking mint status. Please refresh and try again.');
+        setState('error');
+      }
+    }, 3000); // Poll every 3 seconds
+
+    // Cleanup function
+    return () => clearInterval(pollInterval);
+  }, []);
+
+  // Auto-check eligibility when wallet is connected (removed auto-show minted assets)
+  useEffect(() => {
+    if (connected && activeAddress && state === 'idle') {
+      handleCheckEligibility();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connected, activeAddress, state]);
+
+  // Get progress information
+  const getProgressInfo = () => {
+    if (!mintProgress || !mintProgress.steps) return { current: 0, total: mintQuantity };
+    
+    // Count unique assets that have been successfully minted (not just completed steps)
+    const uniqueAssets = new Set();
+    mintProgress.steps.forEach(step => {
+      if (step.status === 'completed' && step.assetBaseName) {
+        uniqueAssets.add(step.assetBaseName);
+      }
+    });
+    
+    // Use the API's assetIndex if available, otherwise fall back to unique asset count
+    const currentStep = mintProgress.steps.find(step => step.status === 'in_progress');
+    const current = currentStep?.assetIndex || uniqueAssets.size;
+    const total = currentStep?.totalAssets || mintQuantity;
+    
+    // Ensure current never exceeds total
+    return { 
+      current: Math.min(current, total), 
+      total: total 
+    };
   };
 
+  const progressInfo = getProgressInfo();
+
+  // Get status display based on current state
   const getStatusDisplay = () => {
-    if (isChecking || eligibilityStatus === 'checking') {
+    switch (state) {
+      case 'checking-eligibility':
+        return {
+          title: activeAddress ? `${activeAddress.slice(0, 6)}...${activeAddress.slice(-4)}` : '',
+          message: 'Checking mint eligibility...',
+          messageColor: 'text-yellow-400',
+          showControls: false
+        };
+      
+      case 'checking-mint-more':
       return {
         title: activeAddress ? `${activeAddress.slice(0, 6)}...${activeAddress.slice(-4)}` : '',
-        message: 'Checking eligibility...',
+          message: 'Checking mint eligibility...',
         messageColor: 'text-yellow-400',
-        showCountdown: false
+          showControls: false
       };
-    }
-
-    switch (eligibilityStatus) {
-      case 'eligible':
+      
+      case 'show-eligibility':
         return {
-          title: scrambledText,
-          message: null,
+          title: `${scrambledEligibleText} ${eligibility?.eligibility.remainingToMint || 0} NFTs`,
+          message: eligibility?.eligibility.remainingToMint === 1 ? 'You can mint 1 NFT' : `Select quantity (max ${Math.min(eligibility?.eligibility.remainingToMint || 0, eligibility?.eligibility.maxBatchSize || 10)} at once)`,
           messageColor: 'text-green-400',
-          showCountdown: true
+          showControls: true
         };
+      
+      case 'minting':
+        const currentStep = mintProgress?.steps?.find(step => step.status === 'in_progress');
+        const stepMessage = currentStep?.step ? ` (${currentStep.step.replace('minting_asset_', 'Asset ')})` : '';
+        
+        return {
+          title: scrambledMintingText,
+          message: `Minting ${progressInfo.current}/${progressInfo.total} NFTs...`,
+          messageColor: 'text-[#fcee0a]',
+          showControls: false
+        };
+      
       case 'not-eligible':
         return {
           title: activeAddress ? `${activeAddress.slice(0, 6)}...${activeAddress.slice(-4)}` : '',
-          message: 'Wallet is not eligible for whitelist.',
+          message: 'Wallet is not eligible for minting.',
           messageColor: 'text-red-400',
-          showCountdown: false
+          showControls: false
         };
+      
+      case 'not-eligible-mint-more':
+        return {
+          title: 'Oops!',
+          message: 'You are not eligible to mint more in this phase.',
+          messageColor: 'text-red-400',
+          showControls: false
+        };
+      
       case 'error':
         return {
           title: connected && activeAddress ? `${activeAddress.slice(0, 6)}...${activeAddress.slice(-4)}` : 'Wallet Not Connected',
-          message: errorMessage || 'Error checking eligibility.',
+          message: errorMessage || 'Error occurred.',
           messageColor: 'text-red-400',
-          showCountdown: false
+          showControls: false
         };
+      
       default:
         return {
-          title: connected && activeAddress ? `${activeAddress.slice(0, 6)}...${activeAddress.slice(-4)}` : 'Click to Check Eligibility',
-          message: 'Click the button below to check your whitelist status',
+          title: connected && activeAddress ? `${activeAddress.slice(0, 6)}...${activeAddress.slice(-4)}` : 'Connect Wallet to Mint',
+          message: 'Click the button below to check your mint eligibility',
           messageColor: 'text-gray-400',
-          showCountdown: false
+          showControls: false
         };
     }
   };
 
   const statusDisplay = getStatusDisplay();
+  const maxQuantity = eligibility ? Math.min(eligibility.eligibility.remainingToMint, eligibility.eligibility.maxBatchSize) : 10;
 
   return (
     <Background>
       {/* Main Content */}
-      <div className="absolute w-[1118px] h-[470px] top-[210px] left-1/2 -translate-x-1/2">
-              <div className="relative h-[470px] bg-[url(/rectangle-3.svg)] bg-[100%_100%]">
-                {/* Header */}
-                <div className="absolute w-[1028px] h-[75px] top-[38px] left-[53px]">
-                  <div className="flex flex-col w-[609px] items-start gap-5 absolute top-[3px] left-0">
-                    <div className="relative w-[535px] [font-family:'Space_Grotesk',Helvetica] font-bold text-[#fcee0a] text-[35px] tracking-[1.75px] leading-normal">
-                      WHITELIST STATUS
-                    </div>
-                    <div 
-       className="relative w-[335px] h-[5px] bg-[url(/line-seperator.svg)] bg-no-repeat "
-       style={{ 
-         filter: 'brightness(0) saturate(100%) invert(92%) sepia(97%) saturate(1352%) hue-rotate(348deg) brightness(103%) contrast(103%)',
-      
-       }}
-     />
-                  </div>
-
-                  {connected && activeAddress && (isChecking || eligibilityStatus === 'checking') && (
-                    <div className="absolute w-[445px] top-0 left-[583px] [font-family:'Space_Grotesk',Helvetica] font-normal text-[#c4c4c4] text-2xl text-right tracking-[1.20px] leading-normal">
-                      <span className="font-light tracking-[0.29px]">
-                        Checking eligibility for wallet:{" "}
-                      </span>
-                      <span className="font-bold tracking-[0.29px]">
-                        {`${activeAddress.slice(0, 6)}...${activeAddress.slice(-4)}`}
-                      </span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Try Again Button */}
-                <div className="absolute w-52 h-[49px] top-[392px] left-[565px]">
-                  <button 
-                    onClick={handleCheckEligibility}
-                    disabled={isChecking}
-                    className="relative h-[50px] w-full disabled:opacity-50"
-                  >
-                    <div className="absolute top-11 left-[97px] [font-family:'Space_Grotesk',Helvetica] font-medium text-white text-[4.9px] tracking-[0.25px] leading-normal">
-                      MK ID
-                    </div>
-                    <img
-                      className="absolute w-[207px] h-[47px] top-px left-px"
-                      alt="Glitch"
-                      src="/glitch.svg"
-                    />
-                    <img
-                      className="absolute w-[207px] h-[47px] top-0 left-0"
-                      alt="Subtract"
-                      src="/subtract.svg"
-                    />
-                    <div className="absolute inset-0 flex items-center justify-center [font-family:'Space_Grotesk',Helvetica] font-bold text-white text-[15px] tracking-[0.75px] leading-tight whitespace-nowrap">
-                      {isChecking ? 'CHECKING...' : 'CHECK ELIGIBILITY'}
-                    </div>
-                  </button>
-                </div>
-
-                {/* Go Back Button */}
-                <div className="absolute w-[197px] h-[52px] top-[392px] left-[323px]">
-                  <div className="relative w-[193px] h-[52px]">
-                    <img
-                      className="absolute w-[193px] h-[49px] top-0 left-0"
-                      alt="Button background"
-                      src="/group-1.png"
-                    />
-                    <div className="top-[45px] left-[166px] text-[6.1px] tracking-[0.30px] absolute [font-family:'Advent_Pro',Helvetica] font-medium text-white leading-normal whitespace-nowrap">
-                      R25
-                    </div>
-                    <div className="absolute top-3 left-16 [font-family:'Advent_Pro',Helvetica] font-bold text-white text-[18.4px] tracking-[0.92px] leading-normal whitespace-nowrap">
-                      GO BACK
-                    </div>
-                  </div>
-                </div>
-
-                {/* Status Card */}
-                <Card className="absolute top-[170px] left-[210px] w-[698px] h-[132px] border-[0.5px] border-solid border-[#646464] rounded-lg bg-black/50 backdrop-blur-sm">
-                  <CardContent className="flex flex-col items-center justify-center h-full p-[33px] space-y-4">
-                    <div className="flex flex-col items-center w-full">
-                      <div className={`[font-family:'Space_Grotesk',Helvetica] font-bold text-xl text-center tracking-[0] leading-7 ${
-                        eligibilityStatus === 'eligible' ? 'text-[#fcee0a]' : 'text-white'
-                      }`}>
-                        {statusDisplay.title}
-                      </div>
-                    </div>
-                    {statusDisplay.showCountdown ? (
-                      <CountdownTimer />
-                    ) : statusDisplay.message && (
-                      <div className="flex flex-col items-center w-full">
-                        <div className={`[font-family:'Space_Grotesk',Helvetica] font-normal ${statusDisplay.messageColor} text-sm text-center tracking-[0] leading-5`}>
-                          {statusDisplay.message}
-                        </div>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              </div>
+      <div className="min-h-screen flex flex-col items-center justify-center px-4 sm:px-6 lg:px-8 py-20">
+        <div className="w-full max-w-4xl mx-auto">
+          {/* Header */}
+          <div className="text-center mb-8 sm:mb-12">
+            <div className="space-y-3 sm:space-y-4">
+              <h1 className="[font-family:'Space_Grotesk',Helvetica] font-bold text-[#fcee0a] text-2xl sm:text-3xl lg:text-4xl tracking-[1.5px] lg:tracking-[2px] leading-tight">
+                MINT MEKA NFTs
+              </h1>
+              <div 
+                className="w-full max-w-[280px] sm:max-w-[320px] h-[3px] bg-[url(/line-seperator.svg)] bg-no-repeat bg-center mx-auto"
+                style={{ 
+                  backgroundSize: 'contain',
+                  filter: 'brightness(0) saturate(100%) invert(92%) sepia(97%) saturate(1352%) hue-rotate(348deg) brightness(103%) contrast(103%)',
+                }}
+              />
             </div>
-       
+
+            {(state === 'checking-eligibility' || state === 'checking-mint-more') && connected && activeAddress && (
+              <div className="mt-4 text-center">
+                <div className="[font-family:'Space_Grotesk',Helvetica] font-normal text-[#c4c4c4] text-sm sm:text-base lg:text-lg tracking-[1.20px] leading-normal">
+                  <span className="font-light tracking-[0.29px]">
+                    Checking eligibility for wallet:{" "}
+                  </span>
+                  <span className="font-bold tracking-[0.29px] break-all">
+                    {`${activeAddress.slice(0, 6)}...${activeAddress.slice(-4)}`}
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Status Card */}
+          <Card className="w-full max-w-3xl mx-auto border-[0.5px] border-solid border-[#646464] rounded-lg bg-black/50 backdrop-blur-sm mb-8">
+            <CardContent className="flex flex-col items-center p-6 sm:p-8 justify-center min-h-[200px] space-y-6">
+              <div className="flex flex-col items-center w-full">
+                <div className={`[font-family:'Space_Grotesk',Helvetica] font-bold text-lg sm:text-xl text-center tracking-[0] leading-7 ${
+                  state === 'show-eligibility' ? 'text-[#fcee0a]' : 'text-white'
+                }`}>
+                  {statusDisplay.title}
+                </div>
+              </div>
+
+              {statusDisplay.message && (
+                <div className="flex flex-col items-center w-full">
+                  <div className={`[font-family:'Space_Grotesk',Helvetica] font-normal ${statusDisplay.messageColor} text-sm sm:text-base text-center tracking-[0] leading-5 px-4`}>
+                    {statusDisplay.message}
+                  </div>
+                </div>
+              )}
+
+              {/* Quantity Slider */}
+              {state === 'show-eligibility' && eligibility && eligibility.eligibility.remainingToMint > 1 && (
+                <div className="w-full max-w-md">
+                  <QuantitySlider 
+                    max={maxQuantity}
+                    value={mintQuantity}
+                    onChange={setMintQuantity}
+                  />
+                </div>
+              )}
+
+              {/* Progress Bar */}
+              {state === 'minting' && (
+                <div className="w-full max-w-md space-y-2">
+                  <ProgressBar current={progressInfo.current} total={progressInfo.total} />
+                  <div className="text-center text-sm text-gray-400">
+                    {progressInfo.current}/{progressInfo.total} NFTs minted
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Action Buttons */}
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-6">
+            {/* Go Back Button */}
+            <button 
+              onClick={() => navigate('/')}
+              className="relative group order-2 sm:order-1"
+            >
+              <div className="absolute -inset-1 bg-gradient-to-r from-gray-600 via-gray-500 to-gray-600 rounded-lg blur opacity-25 group-hover:opacity-75 transition duration-1000 group-hover:duration-200"></div>
+              <div className="relative px-6 py-3 sm:px-8 sm:py-4 bg-black rounded-lg leading-none flex items-center">
+                <span className="[font-family:'Space_Grotesk',Helvetica] font-bold text-white text-sm sm:text-base lg:text-lg tracking-wider uppercase">
+                  Go Back
+                </span>
+              </div>
+            </button>
+
+            {/* Main Action Button */}
+            <button 
+              onClick={
+                state === 'idle' || state === 'error' || state === 'not-eligible' || state === 'not-eligible-mint-more'
+                  ? handleCheckEligibility 
+                  : state === 'show-eligibility'
+                  ? handleStartMinting
+                  : undefined
+              }
+              disabled={state === 'checking-eligibility' || state === 'checking-mint-more' || state === 'minting'}
+              className="relative w-[200px] sm:w-[240px] h-[50px] sm:h-[60px] order-1 sm:order-2 disabled:opacity-50 hover:opacity-80 transition-opacity"
+            >
+              <img
+                className="absolute w-full h-[47px] sm:h-[57px] top-0.5 left-0.5"
+                alt="Glitch"
+                src="/glitch.svg"
+              />
+              <img
+                className="absolute w-full h-[47px] sm:h-[57px] top-0 left-0"
+                alt="Subtract"
+                src="/subtract.svg"
+              />
+              <div className="absolute inset-0 flex items-center justify-center [font-family:'Space_Grotesk',Helvetica] font-bold text-white text-sm sm:text-base tracking-wider uppercase">
+                {state === 'checking-eligibility' || state === 'checking-mint-more' ? 'Checking...' 
+                 : state === 'minting' ? 'Minting...'
+                 : state === 'show-eligibility' ? 'Start Minting'
+                 : 'Check Eligibility'}
+              </div>
+            </button>
+          </div>
+        </div>
+      </div>
     </Background>
-  )
+  );
 }
 
-export default whitelistcheck
+export default MintingInterface;
