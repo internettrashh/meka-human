@@ -1,59 +1,17 @@
 import { Background } from '@/components/background'
 import { useState, useEffect } from 'react'
-import { getCountdownTargetDate, calculateTimeRemaining } from '@/utils/countdown'
 import { useArweaveProvider } from '@/providers/ArweaveProvider'
+import { useConnection } from '@arweave-wallet-kit/react'
 import { getMintedAssets, type MintedAssetsResponse } from '@/actions/mint'
-import { ExternalLink } from 'lucide-react'
-
-// Countdown component for Phase 2
-const Phase2CountdownTimer = () => {
-  const [timeLeft, setTimeLeft] = useState({
-    days: 0,
-    hours: 0,
-    minutes: 0,
-    seconds: 0
-  });
-
-  useEffect(() => {
-    const targetDate = getCountdownTargetDate();
-
-    const timer = setInterval(() => {
-      const timeRemaining = calculateTimeRemaining(targetDate);
-      setTimeLeft({
-        days: timeRemaining.days,
-        hours: timeRemaining.hours,
-        minutes: timeRemaining.minutes,
-        seconds: timeRemaining.seconds
-      });
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, []);
-
-  return (
-    <div className="flex items-center justify-center space-x-2 sm:space-x-3 lg:space-x-4 text-[#fcee0a] font-mono text-sm sm:text-base lg:text-lg">
-      <div className="text-center">
-        <div className="text-xl sm:text-2xl lg:text-3xl font-bold">{timeLeft.days.toString().padStart(2, '0')}</div>
-        <div className="text-xs sm:text-xs mt-1">DAYS</div>
-      </div>
-      <div className="text-lg sm:text-xl lg:text-2xl">:</div>
-      <div className="text-center">
-        <div className="text-xl sm:text-2xl lg:text-3xl font-bold">{timeLeft.hours.toString().padStart(2, '0')}</div>
-        <div className="text-xs sm:text-xs mt-1">HOURS</div>
-      </div>
-      <div className="text-lg sm:text-xl lg:text-2xl">:</div>
-      <div className="text-center">
-        <div className="text-xl sm:text-2xl lg:text-3xl font-bold">{timeLeft.minutes.toString().padStart(2, '0')}</div>
-        <div className="text-xs sm:text-xs mt-1">MINS</div>
-      </div>
-      <div className="text-lg sm:text-xl lg:text-2xl">:</div>
-      <div className="text-center">
-        <div className="text-xl sm:text-2xl lg:text-3xl font-bold">{timeLeft.seconds.toString().padStart(2, '0')}</div>
-        <div className="text-xs sm:text-xs mt-1">SECS</div>
-      </div>
-    </div>
-  );
-};
+import { RarityResult } from '@/components/ui/rarity-result'
+import { 
+  loadRarityData, 
+  calculateNFTRarity, 
+  getNFTMetadata, 
+  type RarityData, 
+  type NFTRarityResult 
+} from '@/utils/rarity'
+import { getMekaNFTMetadata } from '@/services/arweave'
 
 // Minted NFT interface
 interface MintedNFT {
@@ -65,16 +23,12 @@ interface MintedNFT {
   transactionUrl: string;
 }
 
-// NFT Grid Component
-const NFTGrid = ({ nfts }: { nfts: MintedNFT[] }) => {
+// NFT Grid Component with rarity checking
+const NFTGrid = ({ nfts, onNFTSelect }: { nfts: MintedNFT[], onNFTSelect: (assetId: string) => void }) => {
   const [videoErrors, setVideoErrors] = useState<Set<string>>(new Set());
   
   const handleVideoError = (assetId: string) => {
     setVideoErrors(prev => new Set([...prev, assetId]));
-  };
-
-  const openOnBazar = (assetId: string) => {
-    window.open(`https://bazar.ar.io/#/asset/${assetId}`, '_blank');
   };
 
   if (nfts.length === 0) return null;
@@ -92,7 +46,7 @@ const NFTGrid = ({ nfts }: { nfts: MintedNFT[] }) => {
         {nfts.map((nft) => (
           <div
             key={nft.assetId}
-            onClick={() => openOnBazar(nft.assetId)}
+            onClick={() => onNFTSelect(nft.assetId)}
             className="relative aspect-square bg-gray-800 rounded-lg overflow-hidden border border-[#fcee0a]/30 shadow-lg shadow-[#fcee0a]/10 cursor-pointer group hover:border-[#fcee0a] transition-all duration-300"
           >
             {/* NFT Media */}
@@ -113,7 +67,6 @@ const NFTGrid = ({ nfts }: { nfts: MintedNFT[] }) => {
                 Your browser does not support the video tag.
               </video>
             ) : (
-              /* Fallback for failed videos */
               <div className="w-full h-full bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center">
                 <div className="text-center p-4">
                   <div className="w-12 h-12 mx-auto mb-3 bg-[#fcee0a]/20 rounded-full flex items-center justify-center">
@@ -131,13 +84,18 @@ const NFTGrid = ({ nfts }: { nfts: MintedNFT[] }) => {
               </div>
             )}
 
-            {/* Hover Overlay */}
-            <div className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
-              <div className="text-center text-white">
-                <ExternalLink className="w-6 h-6 mx-auto mb-2 text-[#fcee0a]" />
-                <div className="text-xs font-medium">View on Bazar</div>
-              </div>
-            </div>
+            {/* View on Bazar Icon */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                window.open(`https://bazar.ar.io/#/asset/${nft.assetId}`, '_blank');
+              }}
+              className="absolute top-2 left-2 bg-black/60 hover:bg-black/80 text-white p-2 rounded-full transition-colors opacity-0 group-hover:opacity-100"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-2M14 4h6m0 0v6m0-6L10 14" />
+              </svg>
+            </button>
 
             {/* Success Badge */}
             {nft.transferSuccess && (
@@ -164,10 +122,29 @@ const NFTGrid = ({ nfts }: { nfts: MintedNFT[] }) => {
 
 function RarityPage() {
   const { connected, address: activeAddress } = useArweaveProvider();
+  const { connect } = useConnection();
   const [mintedAssets, setMintedAssets] = useState<MintedAssetsResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [showCountdown, setShowCountdown] = useState(false);
+  const [rarityData, setRarityData] = useState<RarityData | null>(null);
+  const [currentNFT, setCurrentNFT] = useState<NFTRarityResult | null>(null);
+  const [rarityLoading, setRarityLoading] = useState(false);
+  const [rarityError, setRarityError] = useState('');
+
+  // Load rarity data on component mount
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const data = await loadRarityData();
+        setRarityData(data);
+      } catch (error) {
+        console.error('Failed to load rarity data:', error);
+        setError('Failed to load rarity database');
+      }
+    };
+    
+    loadData();
+  }, []);
 
   // Fetch minted assets when wallet is connected
   useEffect(() => {
@@ -216,118 +193,113 @@ function RarityPage() {
     };
   }, [connected, activeAddress]);
 
+  const handleNFTSelect = async (assetId: string) => {
+    if (!rarityData) {
+      setRarityError('Rarity database not loaded');
+      return;
+    }
+
+    setRarityLoading(true);
+    setRarityError('');
+    setCurrentNFT(null);
+
+    try {
+      // Fetch from Arweave using Asset ID
+      const arweaveData = await getMekaNFTMetadata(assetId);
+      let metadata = arweaveData.metadata;
+      
+      // Also check our local database for additional rarity data
+      if (arweaveData.mekaNumber) {
+        const localMetadata = getNFTMetadata(arweaveData.mekaNumber, rarityData);
+        if (localMetadata) {
+          metadata = localMetadata;
+        }
+      }
+
+      if (!metadata) {
+        throw new Error('NFT metadata not found');
+      }
+
+      // Calculate rarity
+      const rarityResult = calculateNFTRarity(metadata, rarityData);
+      rarityResult.assetId = assetId; // Store the original asset ID for video playback
+      setCurrentNFT(rarityResult);
+
+    } catch (error: any) {
+      console.error('Rarity check error:', error);
+      setRarityError(error.message || 'Failed to analyze NFT rarity');
+    } finally {
+      setRarityLoading(false);
+    }
+  };
+
+  const handleBack = () => {
+    setCurrentNFT(null);
+    setRarityError('');
+  };
+
   const hasMintedAssets = mintedAssets && mintedAssets.mintedAssets.length > 0;
+
+  // If showing rarity results
+  if (currentNFT) {
+    return <RarityResult rarityResult={currentNFT} onBack={handleBack} />;
+  }
 
   return (
     <Background>
-      {/* Main Content */}
       <div className="flex flex-col items-center justify-center min-h-screen px-4 sm:px-6 lg:px-8 py-16 sm:py-20">
-        <div className="text-center space-y-6 sm:space-y-8 lg:space-y-10 max-w-4xl mx-auto w-full">
+        <div className="text-center space-y-8 max-w-4xl mx-auto w-full">
           
-          {/* Minted Assets Section - Show at top if user has minted NFTs */}
-          {connected && activeAddress && hasMintedAssets && (
-            <div className="space-y-4 sm:space-y-5 mb-8 sm:mb-10">
-              <div className="space-y-3 sm:space-y-4">
-                <h2 className="[font-family:'Space_Grotesk',Helvetica] font-bold text-[#fcee0a] text-xl sm:text-2xl lg:text-3xl tracking-[1.5px] lg:tracking-[2px] leading-tight">
-                  YOUR MINTED NFTs
-                </h2>
-                <div 
-                  className="w-full max-w-[280px] sm:max-w-[320px] h-[3px] bg-[url(/line-seperator.svg)] bg-no-repeat bg-center mx-auto"
-                  style={{ 
-                    backgroundSize: 'contain',
-                    filter: 'brightness(0) saturate(100%) invert(92%) sepia(97%) saturate(1352%) hue-rotate(348deg) brightness(103%) contrast(103%)',
-                  }}
-                />
-                <p className="[font-family:'Space_Grotesk',Helvetica] font-normal text-[#c4c4c4] text-sm sm:text-base max-w-md mx-auto">
-                  {mintedAssets.mintingHistory.successfulMints} successfully minted
-                </p>
-              </div>
+          {/* Main Title - Only show when connected */}
+          {connected && (
+            <div className="space-y-4 mb-12">
+              <h1 className="[font-family:'Space_Grotesk',Helvetica] font-bold text-[#fcee0a] text-3xl sm:text-4xl lg:text-5xl tracking-[1.5px] lg:tracking-[2px] leading-tight">
+                YOUR MEKA COLLECTION
+              </h1>
+              <div 
+                className="w-full max-w-[320px] h-[3px] bg-[url(/line-seperator.svg)] bg-no-repeat bg-center mx-auto"
+                style={{ 
+                  backgroundSize: 'contain',
+                  filter: 'brightness(0) saturate(100%) invert(92%) sepia(97%) saturate(1352%) hue-rotate(348deg) brightness(103%) contrast(103%)',
+                }}
+              />
+              <p className="[font-family:'Space_Grotesk',Helvetica] font-normal text-[#c4c4c4] text-base lg:text-lg max-w-2xl mx-auto leading-relaxed">
+                Click on any of your minted NFTs to analyze their rarity and discover their unique traits.
+              </p>
+            </div>
+          )}
 
-              <div className="flex justify-center">
-                <NFTGrid nfts={mintedAssets.mintedAssets.map(asset => ({
+          {/* Loading State for Rarity Calculation */}
+          {rarityLoading && (
+            <div className="text-center p-8">
+              <div className="text-[#fcee0a] text-lg mb-2"> Analyzing NFT Rarity...</div>
+              <div className="text-gray-400">Fetching metadata and calculating scores</div>
+            </div>
+          )}
+
+          {/* Error State */}
+          {rarityError && (
+            <div className="p-4 bg-red-900/50 border border-red-500 rounded-lg max-w-md mx-auto">
+              <p className="text-red-300 text-sm text-center">
+                {rarityError}
+              </p>
+            </div>
+          )}
+
+                    {/* Minted Assets Section */}
+          {connected && activeAddress && hasMintedAssets && !rarityLoading && (
+            <div className="flex justify-center">
+              <NFTGrid 
+                nfts={mintedAssets.mintedAssets.map(asset => ({
                   assetBaseName: asset.assetBaseName,
                   assetId: asset.assetId,
                   assetName: asset.assetName,
                   transferSuccess: asset.transferSuccess,
                   transferId: asset.transferId,
                   transactionUrl: asset.transactionUrl
-                }))} />
-              </div>
-            </div>
-          )}
-
-          {/* Check Rarity Button or Phase 2 Section */}
-          {!showCountdown ? (
-            <div className="space-y-6 sm:space-y-8 lg:space-y-10 flex flex-col items-center">
-              {/* Check Rarity Title */}
-              <div className="space-y-3 sm:space-y-4 lg:space-y-5 text-center">
-                <h1 className="[font-family:'Space_Grotesk',Helvetica] font-bold text-[#fcee0a] text-2xl sm:text-3xl lg:text-4xl tracking-[1.5px] lg:tracking-[2px] leading-tight">
-                  RARITY CHECK
-                </h1>
-                <div 
-                  className="w-full max-w-[280px] sm:max-w-[320px] h-[3px] bg-[url(/line-seperator.svg)] bg-no-repeat bg-center mx-auto"
-                  style={{ 
-                    backgroundSize: 'contain',
-                    filter: 'brightness(0) saturate(100%) invert(92%) sepia(97%) saturate(1352%) hue-rotate(348deg) brightness(103%) contrast(103%)',
-                  }}
-                />
-              </div>
-
-              {/* Check Rarity Button */}
-              <div className="flex justify-center">
-                <button
-                  onClick={() => setShowCountdown(true)}
-                  className="relative group"
-                >
-                  <div className="absolute -inset-1 bg-gradient-to-r from-[#fcee0a] via-[#fcee0a] to-[#fcee0a] rounded-lg blur opacity-75 group-hover:opacity-100 transition duration-1000 group-hover:duration-200 animate-pulse"></div>
-                  <div className="relative px-6 py-3 sm:px-8 sm:py-4 bg-black rounded-lg leading-none flex items-center divide-x divide-gray-600">
-                    <span className="[font-family:'Space_Grotesk',Helvetica] font-bold text-[#fcee0a] text-base sm:text-lg lg:text-xl tracking-wider uppercase">
-                      Check Rarity
-                    </span>
-                  </div>
-                </button>
-              </div>
-
-              {/* Description */}
-              <p className="[font-family:'Space_Grotesk',Helvetica] font-normal text-[#c4c4c4] text-sm sm:text-base lg:text-lg max-w-lg mx-auto leading-relaxed text-center px-4">
-                Click the button above to check when the rarity system will be available.
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-6 sm:space-y-8 lg:space-y-10 flex flex-col items-center">
-              {/* Rarity System Launch Title */}
-              <div className="space-y-3 sm:space-y-4 lg:space-y-5 text-center">
-                <h1 className="[font-family:'Space_Grotesk',Helvetica] font-bold text-[#fcee0a] text-2xl sm:text-3xl lg:text-4xl tracking-[1.5px] lg:tracking-[2px] leading-tight">
-                  RARITY SYSTEM LAUNCH
-                </h1>
-                <div 
-                  className="w-full max-w-[280px] sm:max-w-[320px] h-[3px] bg-[url(/line-seperator.svg)] bg-no-repeat bg-center mx-auto"
-                  style={{ 
-                    backgroundSize: 'contain',
-                    filter: 'brightness(0) saturate(100%) invert(92%) sepia(97%) saturate(1352%) hue-rotate(348deg) brightness(103%) contrast(103%)',
-                  }}
-                />
-              </div>
-
-              {/* Countdown Timer */}
-              <div className="flex justify-center">
-                <Phase2CountdownTimer />
-              </div>
-
-              {/* Description */}
-              <p className="[font-family:'Space_Grotesk',Helvetica] font-normal text-[#c4c4c4] text-sm sm:text-base lg:text-lg max-w-lg mx-auto leading-relaxed text-center px-4">
-              Rarity system and advanced features coming soon. Stay tuned for the next phase of MEKA HUMAN.
-              </p>
-
-              {/* Back Button */}
-              <div className="flex justify-center">
-                <button
-                  onClick={() => setShowCountdown(false)}
-                  className="[font-family:'Space_Grotesk',Helvetica] font-normal text-[#c4c4c4] text-sm hover:text-[#fcee0a] transition-colors duration-300 underline"
-                >
-                  ← Back to Rarity Check
-                </button>
-              </div>
+                }))} 
+                onNFTSelect={handleNFTSelect}
+              />
             </div>
           )}
 
@@ -346,8 +318,57 @@ function RarityPage() {
 
           {/* Connect Wallet Message */}
           {!connected && (
-            <div className="text-[#c4c4c4] text-sm sm:text-base text-center">
-              Connect your wallet to view your minted NFTs
+            <div className="text-center space-y-8 max-w-4xl mx-auto">
+              <div className="space-y-6">
+                <h1 className="[font-family:'Space_Grotesk',Helvetica] font-bold text-[#fcee0a] text-3xl sm:text-4xl lg:text-5xl tracking-[1.5px] lg:tracking-[2px] leading-tight">
+                  MEKA_IDs: RARITY CHECKER
+                </h1>
+                <div 
+                  className="w-full max-w-[320px] h-[3px] bg-[url(/line-seperator.svg)] bg-no-repeat bg-center mx-auto"
+                  style={{ 
+                    backgroundSize: 'contain',
+                    filter: 'brightness(0) saturate(100%) invert(92%) sepia(97%) saturate(1352%) hue-rotate(348deg) brightness(103%) contrast(103%)',
+                  }}
+                />
+                <p className="[font-family:'Space_Grotesk',Helvetica] font-normal text-[#fcee0a] text-base lg:text-lg max-w-3xl mx-auto leading-relaxed px-4">
+                  Meka Humans emerged from the smog-choked underbelly of Meka City, refined in illegal factories, minted in dark net marketplaces, and coded to evolve. What began as wearable shells are now full-fledged identities: smarter, sleeker, and forged with rare components.
+                </p>
+              </div>
+              
+              <div className="flex justify-center">
+                <button
+                  onClick={() => {
+                    connect();
+                  }}
+                  className="relative w-64 h-12 group"
+                >
+                  <img
+                    className="absolute w-full h-[47px] top-0.5 left-0.5"
+                    alt="Glitch effect"
+                    src="/glitch.svg"
+                  />
+                  <img
+                    className="absolute w-full h-[47px] top-0 left-0"
+                    alt="Button background"
+                    src="/subtract.svg"
+                  />
+                  <div className="absolute inset-0 flex items-center justify-center [font-family:'Space_Grotesk',Helvetica] font-bold text-white text-sm tracking-wider uppercase">
+                    Connect Wallet
+                  </div>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* No Minted NFTs Message */}
+          {connected && activeAddress && !loading && !hasMintedAssets && !error && (
+            <div className="text-center space-y-4">
+              <div className="text-[#c4c4c4] text-sm sm:text-base">
+                No minted NFTs found in your wallet
+              </div>
+              <div className="text-gray-500 text-xs">
+                🎮 Mint your first Meka Human NFT to unlock rarity analysis
+              </div>
             </div>
           )}
         </div>

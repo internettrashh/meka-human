@@ -65,12 +65,12 @@ const NFTGrid = ({ nfts }: { nfts: MintedNFT[] }) => {
 
   return (
     <div className="w-full">
-      <div className={`grid gap-4 sm:gap-6 ${
-        nfts.length === 1 ? 'grid-cols-1 justify-center max-w-sm sm:max-w-md mx-auto' :
-        nfts.length === 2 ? 'grid-cols-2 max-w-md sm:max-w-lg mx-auto' :
-        nfts.length === 3 ? 'grid-cols-3 max-w-lg sm:max-w-2xl mx-auto' :
-        nfts.length === 4 ? 'grid-cols-2 max-w-md sm:max-w-lg mx-auto' :
-        'grid-cols-3 sm:grid-cols-4 max-w-2xl sm:max-w-4xl mx-auto'
+      <div className={`grid gap-3 sm:gap-4 lg:gap-6 ${
+        nfts.length === 1 ? 'grid-cols-1 justify-center max-w-xs sm:max-w-sm mx-auto' :
+        nfts.length === 2 ? 'grid-cols-1 sm:grid-cols-2 max-w-xs sm:max-w-md mx-auto' :
+        nfts.length === 3 ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 max-w-xs sm:max-w-md lg:max-w-2xl mx-auto' :
+        nfts.length === 4 ? 'grid-cols-1 sm:grid-cols-2 max-w-xs sm:max-w-md mx-auto' :
+        'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 max-w-xs sm:max-w-md lg:max-w-2xl xl:max-w-4xl mx-auto'
       }`}>
         {nfts.map((nft) => (
           <div
@@ -163,98 +163,93 @@ function MintSuccessPage() {
 
   return (
     <Background>
-      {/* Main Content */}
-      <div className="absolute w-[1118px] h-[620px] top-[180px] left-1/2 -translate-x-1/2">
-        <div className="relative h-[620px] bg-[url(/rectangle-3.svg)] bg-[100%_100%]">
-          {/* Header */}
-          <div className="absolute w-[1028px] h-[75px] top-[38px] left-[53px]">
-            <div className="flex flex-col w-[609px] items-start gap-5 absolute top-[3px] left-0">
-              <div className="relative w-[535px] [font-family:'Space_Grotesk',Helvetica] font-bold text-[#fcee0a] text-[35px] tracking-[1.75px] leading-normal">
-                {scrambledSuccessText}
-              </div>
-              <div 
-                className="relative w-[335px] h-[5px] bg-[url(/line-seperator.svg)] bg-no-repeat"
-                style={{ 
-                  filter: 'brightness(0) saturate(100%) invert(92%) sepia(97%) saturate(1352%) hue-rotate(348deg) brightness(103%) contrast(103%)',
-                }}
-              />
-            </div>
-          </div>
-
-          {/* Mint More Button */}
-          <div className="absolute w-52 h-[49px] top-[542px] left-[565px]">
-            <button 
-              onClick={() => navigate('/mint')}
-              className="relative h-[50px] w-full"
-            >
-              <div className="absolute top-11 left-[97px] [font-family:'Space_Grotesk',Helvetica] font-medium text-white text-[4.9px] tracking-[0.25px] leading-normal">
-                MK ID
-              </div>
-              <img
-                className="absolute w-[207px] h-[47px] top-px left-px"
-                alt="Glitch"
-                src="/glitch.svg"
-              />
-              <img
-                className="absolute w-[207px] h-[47px] top-0 left-0"
-                alt="Subtract"
-                src="/subtract.svg"
-              />
-              <div className="absolute inset-0 flex items-center justify-center [font-family:'Space_Grotesk',Helvetica] font-bold text-white text-[15px] tracking-[0.75px] leading-tight whitespace-nowrap">
-                MINT MORE
-              </div>
-            </button>
-          </div>
-
-          {/* Go Back to Home Button */}
-          <div className="absolute w-[197px] h-[52px] top-[542px] left-[323px]">
-            <button 
-              onClick={() => navigate('/')}
-              className="relative w-[193px] h-[52px]"
-            >
-              <img
-                className="absolute w-[193px] h-[49px] top-0 left-0"
-                alt="Button background"
-                src="/group-1.png"
-              />
-              <div className="top-[45px] left-[166px] text-[6.1px] tracking-[0.30px] absolute [font-family:'Advent_Pro',Helvetica] font-medium text-white leading-normal whitespace-nowrap">
-                R25
-              </div>
-              <div className="absolute top-3 left-16 [font-family:'Advent_Pro',Helvetica] font-bold text-white text-[18.4px] tracking-[0.92px] leading-normal whitespace-nowrap">
-                GO HOME
-              </div>
-            </button>
+      <div className="min-h-screen flex flex-col items-center justify-center px-4 sm:px-6 lg:px-8 py-16 sm:py-20">
+        <div className="w-full max-w-7xl mx-auto">
+          
+          {/* Header Section */}
+          <div className="text-center mb-8 sm:mb-12">
+            <h1 className="[font-family:'Space_Grotesk',Helvetica] font-bold text-[#fcee0a] text-2xl sm:text-3xl lg:text-4xl xl:text-5xl tracking-[1.5px] lg:tracking-[1.75px] leading-tight mb-4 sm:mb-6">
+              {scrambledSuccessText}
+            </h1>
+            <div 
+              className="w-full max-w-[200px] sm:max-w-[280px] lg:max-w-[335px] h-[3px] sm:h-[4px] lg:h-[5px] bg-[url(/line-seperator.svg)] bg-no-repeat bg-center mx-auto"
+              style={{ 
+                backgroundSize: 'contain',
+                filter: 'brightness(0) saturate(100%) invert(92%) sepia(97%) saturate(1352%) hue-rotate(348deg) brightness(103%) contrast(103%)',
+              }}
+            />
           </div>
 
           {/* Success Content Card */}
-          <Card className="absolute top-[140px] left-[120px] w-[878px] h-[380px] border-[0.5px] border-solid border-[#646464] rounded-lg bg-black/50 backdrop-blur-sm overflow-y-auto">
-            <CardContent className="flex flex-col items-center p-[24px] h-full space-y-6">
+          <Card className="w-full border border-[#646464] rounded-lg bg-black/50 backdrop-blur-sm mb-6 sm:mb-8">
+            <CardContent className="flex flex-col items-center p-4 sm:p-6 lg:p-8 space-y-4 sm:space-y-6">
               {/* Success Message */}
-              <div className="flex flex-col items-center w-full space-y-4">
-                <div className="text-center">
-                 
-                  <div className="text-lg font-bold text-green-400 mb-2 [font-family:'Space_Grotesk',Helvetica]">
-                    {successfulMints} NFT{successfulMints > 1 ? 's' : ''} Successfully Minted!
+              <div className="text-center w-full">
+                <div className="text-base sm:text-lg lg:text-xl font-bold text-green-400 mb-2 [font-family:'Space_Grotesk',Helvetica]">
+                  {successfulMints} NFT{successfulMints > 1 ? 's' : ''} Successfully Minted!
+                </div>
+                {failedMints > 0 && (
+                  <div className="text-sm sm:text-base text-red-400 [font-family:'Space_Grotesk',Helvetica]">
+                    {failedMints} failed to mint
                   </div>
-                  {failedMints > 0 && (
-                    <div className="text-sm text-red-400 [font-family:'Space_Grotesk',Helvetica]">
-                      {failedMints} failed to mint
-                    </div>
-                  )}
-                  <div className="text-sm text-gray-300 mt-2 [font-family:'Space_Grotesk',Helvetica]">
-                    Your new MEKA ID NFTs are ready! Click on any NFT to view it on Bazar.
-                  </div>
+                )}
+                <div className="text-sm sm:text-base text-gray-300 mt-2 [font-family:'Space_Grotesk',Helvetica]">
+                  Your new MEKA ID NFTs are ready! Click on any NFT to view it on Bazar.
                 </div>
               </div>
               
               {/* Minted NFTs Grid */}
               {mintedAssets.length > 0 && (
-                <div className="w-full flex-1 flex items-center justify-center">
+                <div className="w-full">
                   <NFTGrid nfts={mintedAssets} />
                 </div>
               )}
             </CardContent>
           </Card>
+
+          {/* Button Section */}
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-6">
+            {/* Go Back to Home Button */}
+            <button 
+              onClick={() => navigate('/')}
+              className="relative w-full sm:w-auto min-w-[180px] h-12 sm:h-[52px]"
+            >
+              <img
+                className="absolute w-full h-[47px] sm:h-[49px] top-0 left-0 object-contain"
+                alt="Button background"
+                src="/group-1.png"
+              />
+              <div className="absolute bottom-1 right-4 sm:right-6 text-[5px] sm:text-[6.1px] tracking-[0.30px] [font-family:'Advent_Pro',Helvetica] font-medium text-white leading-normal whitespace-nowrap">
+                R25
+              </div>
+              <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 [font-family:'Advent_Pro',Helvetica] font-bold text-white text-sm sm:text-base lg:text-lg tracking-[0.92px] leading-normal whitespace-nowrap">
+                GO HOME
+              </div>
+            </button>
+
+            {/* Mint More Button */}
+            <button 
+              onClick={() => navigate('/mint')}
+              className="relative w-full sm:w-auto min-w-[180px] h-12"
+            >
+              <div className="absolute top-[42px] sm:top-11 left-1/2 transform -translate-x-1/2 [font-family:'Space_Grotesk',Helvetica] font-medium text-white text-[4px] sm:text-[4.9px] tracking-[0.25px] leading-normal">
+                MK ID
+              </div>
+              <img
+                className="absolute w-full h-[47px] top-0.5 left-0.5"
+                alt="Glitch"
+                src="/glitch.svg"
+              />
+              <img
+                className="absolute w-full h-[47px] top-0 left-0"
+                alt="Subtract"
+                src="/subtract.svg"
+              />
+              <div className="absolute inset-0 flex items-center justify-center [font-family:'Space_Grotesk',Helvetica] font-bold text-white text-sm sm:text-base lg:text-lg tracking-[0.75px] leading-tight whitespace-nowrap">
+                MINT MORE
+              </div>
+            </button>
+          </div>
         </div>
       </div>
     </Background>

@@ -78,7 +78,7 @@ export const HeroArea = () => {
             </Card>
           </div>
 
-          <div className="flex max-w-screen-xl w-[1057px] items-start justify-between absolute top-[524px] left-1/2 transform -translate-x-1/2">
+          <div className="hidden lg:flex max-w-screen-xl w-[1057px] items-start justify-between absolute top-[524px] left-1/2 transform -translate-x-1/2">
             <div className="relative w-[411px] mt-[-1.00px] font-['Space_Grotesk',Helvetica] font-normal text-gray-300 text-sm tracking-[0] leading-5">
               <TextScramble text="Meka Humans return with a new evolution — Meka IDs." />
               <br />

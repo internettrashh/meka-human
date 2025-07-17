@@ -14,7 +14,7 @@ import {
 } from '@/actions/mint'
 import { useNavigate } from 'react-router-dom'
 import { usePermawebProvider } from '@/providers/PermawebProvider'
-import { ExternalLink } from 'lucide-react'
+import { ExternalLink, X, Wallet } from 'lucide-react'
 
 // Scramble text effect hook
 const useScrambleText = (text: string, isActive: boolean) => {
@@ -291,6 +291,95 @@ const NFTGrid = ({ nfts }: { nfts: MintedNFT[] }) => {
   );
 };
 
+// Connect Wallet Modal Component
+const ConnectWalletModal = ({ 
+  isOpen, 
+  onClose 
+}: { 
+  isOpen: boolean; 
+  onClose: () => void; 
+}) => {
+  const { connect } = useConnection();
+
+  const handleConnect = async () => {
+    try {
+      await connect();
+      onClose();
+    } catch (error) {
+      console.error('Failed to connect wallet:', error);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center">
+      {/* Backdrop */}
+      <div 
+        className="absolute inset-0 bg-black/80 backdrop-blur-sm" 
+        onClick={onClose}
+      />
+      
+      {/* Modal */}
+      <div className="relative w-full max-w-sm mx-4 bg-[#121211] border border-[#646464] rounded-lg p-6 shadow-2xl">
+        {/* Close Button */}
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors"
+        >
+          <X size={20} />
+        </button>
+
+        {/* Content */}
+        <div className="text-center space-y-6">
+          {/* Icon */}
+          <div className="w-16 h-16 mx-auto bg-[#fcee0a]/10 rounded-full flex items-center justify-center">
+            <Wallet className="w-8 h-8 text-[#fcee0a]" />
+          </div>
+
+          {/* Title */}
+          <div>
+            <h3 className="text-xl font-bold text-white mb-2 [font-family:'Space_Grotesk',Helvetica]">
+              Connect Your Wallet
+            </h3>
+            <p className="text-gray-400 text-sm [font-family:'Open_Sans',Helvetica]">
+              You need to connect your wallet to check mint eligibility and mint NFTs.
+            </p>
+          </div>
+
+          {/* Connect Button */}
+          <button
+            onClick={handleConnect}
+            className="relative w-full h-12 group"
+          >
+            <img
+              className="absolute w-full h-[47px] top-0.5 left-0.5"
+              alt="Glitch effect"
+              src="/glitch.svg"
+            />
+            <img
+              className="absolute w-full h-[47px] top-0 left-0"
+              alt="Button background"
+              src="/subtract.svg"
+            />
+            <div className="absolute inset-0 flex items-center justify-center [font-family:'Space_Grotesk',Helvetica] font-bold text-white text-sm tracking-wider uppercase">
+              Connect Wallet
+            </div>
+          </button>
+
+          {/* Cancel Button */}
+          <button
+            onClick={onClose}
+            className="w-full py-3 text-gray-400 hover:text-white transition-colors text-sm [font-family:'Space_Grotesk',Helvetica]"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 type MintingState = 'idle' | 'checking-eligibility' | 'show-eligibility' | 'minting' | 'error' | 'not-eligible' | 'checking-mint-more' | 'not-eligible-mint-more';
 
 function MintingInterface() {
@@ -306,6 +395,12 @@ function MintingInterface() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [mintProgress, setMintProgress] = useState<MintStatusResponse | null>(null);
   const [errorMessage, setErrorMessage] = useState('');
+  const [showConnectModal, setShowConnectModal] = useState(false);
+  
+  // Check if user is on mobile
+  const isMobile = () => {
+    return window.innerWidth < 1024; // lg breakpoint
+  };
   
   // Scramble effects
   const scrambledEligibleText = useScrambleText("YOU CAN MINT", state === 'show-eligibility');
@@ -314,9 +409,15 @@ function MintingInterface() {
   // Check eligibility function
   const handleCheckEligibility = useCallback(async () => {
     if (!connected || !activeAddress) {
-      setErrorMessage('Please connect your wallet to check eligibility.');
-      setState('error');
-      return;
+      // Show modal on mobile, error message on desktop
+      if (isMobile()) {
+        setShowConnectModal(true);
+        return;
+      } else {
+        setErrorMessage('Please connect your wallet to check eligibility.');
+        setState('error');
+        return;
+      }
     }
 
     setState('checking-eligibility');
@@ -455,6 +556,15 @@ function MintingInterface() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [connected, activeAddress, state]);
+
+  // Auto-check eligibility when wallet connects after modal was shown
+  useEffect(() => {
+    if (connected && activeAddress && showConnectModal) {
+      setShowConnectModal(false);
+      handleCheckEligibility();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connected, activeAddress, showConnectModal]);
 
   // Get progress information
   const getProgressInfo = () => {
@@ -680,6 +790,12 @@ function MintingInterface() {
           </div>
         </div>
       </div>
+
+      {/* Connect Wallet Modal */}
+      <ConnectWalletModal 
+        isOpen={showConnectModal} 
+        onClose={() => setShowConnectModal(false)} 
+      />
     </Background>
   );
 }

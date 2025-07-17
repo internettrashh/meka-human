@@ -1,7 +1,5 @@
-import { Card } from "../../components/ui/card";
-const CardContent: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({ className, ...props }) => (
-    <div className={`p-6 pt-0 ${className}`} {...props} />
-  );
+
+import React from "react";
 
 export const LatestNews = () => {
     // Data for news cards to enable mapping
@@ -43,21 +41,23 @@ export const LatestNews = () => {
                 {/* News Cards Container */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 lg:gap-6">
                   {newsCards.map((card) => (
-                    <Card
+                    <div
                       key={card.id}
-                      className="w-full max-w-[427px] h-[297px] bg-[url(/frame-5.svg)] bg-cover bg-center border-0 relative mx-auto"
+                      className="w-full max-w-[427px] h-[297px] bg-[url(/frame-5.svg)] bg-cover bg-center relative mx-auto"
                     >
-                      <CardContent className="p-0">
+                      <div className="p-0 h-full flex flex-col">
                         <img
-                          className="w-[calc(100%-10px)] h-[197px] mt-1.5 ml-1.5 object-cover rounded-t-lg"
+                          className="w-[calc(100%-12px)] h-[197px] mt-1.5 ml-1.5 mr-1.5 object-cover rounded-xl flex-shrink-0"
                           alt="Meka Human"
                           src={card.image}
                         />
-                        <p className="absolute w-[calc(100%-40px)] top-[218px] left-5 font-semibold text-white text-sm sm:text-[15px] tracking-[0] leading-normal font-['Open_Sans',Helvetica]">
-                          {card.content}
-                        </p>
-                      </CardContent>
-                    </Card>
+                        <div className="flex-1 px-5 py-2 flex items-start">
+                          <p className="font-semibold text-white text-xs sm:text-sm tracking-[0] leading-tight font-['Open_Sans',Helvetica] max-h-[60px] overflow-hidden">
+                            {card.content}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
                   ))}
                 </div>
 
