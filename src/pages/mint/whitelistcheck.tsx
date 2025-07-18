@@ -2,19 +2,17 @@ import { Background } from '@/components/background'
 import { Card, CardContent } from '@/components/ui/card'
 import { useConnection, useActiveAddress } from '@arweave-wallet-kit/react'
 import { useState, useEffect, useCallback } from 'react'
-import { 
-  checkMintEligibility, 
-  startMinting, 
-  getMintStatus, 
-  getMintedAssets,
-  type EligibilityResponse,
-  type MintStartResponse,
-  type MintStatusResponse,
-  type MintedAssetsResponse 
-} from '@/actions/mint'
 import { useNavigate } from 'react-router-dom'
 import { usePermawebProvider } from '@/providers/PermawebProvider'
-import { ExternalLink, X, Wallet } from 'lucide-react'
+import { ExternalLink, X, Wallet, Copy, Check, AlertCircle } from 'lucide-react'
+import { createDataItemSigner, dryrun, message } from "@permaweb/aoconnect"
+import { hasRNSNames as checkHasRNSNames, getFirstRNSName } from '@/services/rns'
+
+// Types for AO responses
+interface Tag {
+  name: string;
+  value: string;
+}
 
 // Scramble text effect hook
 const useScrambleText = (text: string, isActive: boolean) => {
@@ -53,10 +51,9 @@ const useScrambleText = (text: string, isActive: boolean) => {
 
 // Progress bar component
 const ProgressBar = ({ current, total }: { current: number; total: number }) => {
-  // Ensure percentage never exceeds 100% and handle edge cases
-  const safeTotal = Math.max(total, 1); // Prevent division by zero
-  const safeCurrent = Math.min(Math.max(current, 0), safeTotal); // Clamp between 0 and total
-  const percentage = Math.min((safeCurrent / safeTotal) * 100, 100); // Cap at 100%
+  const safeTotal = Math.max(total, 1);
+  const safeCurrent = Math.min(Math.max(current, 0), safeTotal);
+  const percentage = Math.min((safeCurrent / safeTotal) * 100, 100);
 
   return (
     <div className="w-full bg-gray-700 rounded-full h-2">
@@ -64,11 +61,11 @@ const ProgressBar = ({ current, total }: { current: number; total: number }) => 
         className="bg-[#fcee0a] h-2 rounded-full transition-all duration-500 ease-out"
         style={{ width: `${percentage}%` }}
       />
-      </div>
+    </div>
   );
 };
 
-// Quantity slider component with improved styling
+// Quantity slider component
 const QuantitySlider = ({ 
   max, 
   value, 
@@ -97,7 +94,6 @@ const QuantitySlider = ({
           className="slider w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer relative z-10"
         />
         
-        {/* Custom track background */}
         <div className="absolute top-1/2 left-0 w-full h-2 bg-gray-700 rounded-lg -translate-y-1/2 pointer-events-none">
           <div 
             className="h-full bg-[#fcee0a] rounded-lg transition-all duration-200 ease-out"
@@ -181,19 +177,120 @@ const QuantitySlider = ({
             box-shadow: 0 0 0 3px rgba(252, 238, 10, 0.3);
           }
         `
-              }} />
-      </div>
-    );
+      }} />
+    </div>
+  );
 };
 
-// Simple NFT Grid Component
+// Payment configuration
+const PAYMENT_CONFIG = {
+  recipientAddress: 'TqcUc15NJ2U5OxbXEUu2DkUYvYFyIADS6Wi-_A8-e7M',
+  tokenId: 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
+  pricePerNFT: '500000000000000000', // 0.5 WAR (18 decimals)
+  maxQuantity: 10
+};
+
+// API configuration
+const API_BASE_URL = 'https://vmi2322729.contaboserver.net/backend';
+
+// API functions
+const createMintingSession = async (walletAddress: string, quantity: number, recipientProfileId?: string) => {
+  const requestBody: any = {
+    walletAddress,
+    quantity
+  };
+  
+  // Include recipientProfileId if provided
+  if (recipientProfileId) {
+    requestBody.recipientProfileId = recipientProfileId;
+  }
+  
+  const response = await fetch(`${API_BASE_URL}/paid-mint/create-session`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(requestBody)
+  });
+  
+  if (!response.ok) {
+    throw new Error('Failed to create minting session');
+  }
+  
+  return response.json();
+};
+
+const verifyPayment = async (sessionId: string, txId: string) => {
+  const response = await fetch(`${API_BASE_URL}/paid-mint/verify-payment`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      sessionId,
+      txId
+    })
+  });
+  
+  if (!response.ok) {
+    throw new Error('Failed to verify payment');
+  }
+  
+  return response.json();
+};
+
+const getSessionStatus = async (sessionId: string) => {
+  // Use the universal status endpoint for both regular and paid minting
+  const response = await fetch(`${API_BASE_URL}/paid-mint/status/${sessionId}`);
+  
+  if (!response.ok) {
+    throw new Error('Failed to get session status');
+  }
+  
+  return response.json();
+};
+
+// Types
+interface PaidMintSession {
+  sessionId: string;
+  sessionType: 'paid_minting' | 'regular_minting';
+  status: 'pending_payment' | 'payment_verified' | 'minting' | 'completed' | 'failed' | 'expired' | 'started' | 'in_progress';
+  walletAddress: string;
+  recipientProfileId?: string;
+  quantity: number;
+  paymentRequired?: {
+    total: {
+      winstons: string;
+      ar: string;
+    };
+    perNFT: {
+      winstons: string;
+      ar: string;
+    };
+    recipient: string;
+    tokenId: string;
+  };
+  paymentAmount?: {
+    winstons: string;
+    ar: string;
+  };
+  txId?: string;
+  mintedAssets?: Array<{
+    assetId: string;
+    assetBaseName: string;
+    transferId: string;
+  }>;
+  error?: string;
+  expiresAt?: string;
+  isExpired: boolean;
+  timeToExpiry?: number;
+}
+
+// NFT Grid Component
 interface MintedNFT {
-  assetBaseName: string;
   assetId: string;
-  assetName: string;
-  transferSuccess: boolean;
+  assetBaseName: string;
   transferId: string;
-  transactionUrl: string;
 }
 
 const NFTGrid = ({ nfts }: { nfts: MintedNFT[] }) => {
@@ -224,7 +321,6 @@ const NFTGrid = ({ nfts }: { nfts: MintedNFT[] }) => {
             onClick={() => openOnBazar(nft.assetId)}
             className="relative aspect-square bg-gray-800 rounded-lg overflow-hidden border border-[#fcee0a]/30 shadow-lg shadow-[#fcee0a]/10 cursor-pointer group hover:border-[#fcee0a] transition-all duration-300"
           >
-            {/* NFT Media */}
             {!videoErrors.has(nft.assetId) ? (
               <video
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
@@ -242,16 +338,15 @@ const NFTGrid = ({ nfts }: { nfts: MintedNFT[] }) => {
                 Your browser does not support the video tag.
               </video>
             ) : (
-              /* Fallback for failed videos */
               <div className="w-full h-full bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center">
                 <div className="text-center p-4">
                   <div className="w-12 h-12 mx-auto mb-3 bg-[#fcee0a]/20 rounded-full flex items-center justify-center">
                     <span className="text-[#fcee0a] text-lg font-bold">
-                      {nft.assetName.charAt(0)}
+                      {nft.assetBaseName.charAt(0)}
                     </span>
                   </div>
                   <div className="text-white text-xs font-medium">
-                    {nft.assetName}
+                    {nft.assetBaseName}
                   </div>
                   <div className="text-gray-400 text-xs mt-1">
                     {nft.assetId.slice(0, 6)}...
@@ -260,7 +355,6 @@ const NFTGrid = ({ nfts }: { nfts: MintedNFT[] }) => {
               </div>
             )}
 
-            {/* Hover Overlay */}
             <div className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
               <div className="text-center text-white">
                 <ExternalLink className="w-6 h-6 mx-auto mb-2 text-[#fcee0a]" />
@@ -268,17 +362,13 @@ const NFTGrid = ({ nfts }: { nfts: MintedNFT[] }) => {
               </div>
             </div>
 
-            {/* Success Badge */}
-            {nft.transferSuccess && (
-              <div className="absolute top-2 right-2 bg-green-500 text-white text-xs px-2 py-1 rounded-full font-medium">
-                Minted
-              </div>
-            )}
+            <div className="absolute top-2 right-2 bg-green-500 text-white text-xs px-2 py-1 rounded-full font-medium">
+              Minted
+            </div>
 
-            {/* Asset Name */}
             <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-3">
               <div className="text-white text-sm font-medium truncate">
-                {nft.assetName}
+                {nft.assetBaseName}
               </div>
               <div className="text-gray-300 text-xs">
                 {nft.assetId.slice(0, 8)}...
@@ -314,15 +404,12 @@ const ConnectWalletModal = ({
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center">
-      {/* Backdrop */}
       <div 
         className="absolute inset-0 bg-black/80 backdrop-blur-sm" 
         onClick={onClose}
       />
       
-      {/* Modal */}
       <div className="relative w-full max-w-sm mx-4 bg-[#121211] border border-[#646464] rounded-lg p-6 shadow-2xl">
-        {/* Close Button */}
         <button
           onClick={onClose}
           className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors"
@@ -330,24 +417,20 @@ const ConnectWalletModal = ({
           <X size={20} />
         </button>
 
-        {/* Content */}
         <div className="text-center space-y-6">
-          {/* Icon */}
           <div className="w-16 h-16 mx-auto bg-[#fcee0a]/10 rounded-full flex items-center justify-center">
             <Wallet className="w-8 h-8 text-[#fcee0a]" />
           </div>
 
-          {/* Title */}
           <div>
             <h3 className="text-xl font-bold text-white mb-2 [font-family:'Space_Grotesk',Helvetica]">
               Connect Your Wallet
             </h3>
             <p className="text-gray-400 text-sm [font-family:'Open_Sans',Helvetica]">
-              You need to connect your wallet to check mint eligibility and mint NFTs.
+              You need to connect your wallet to purchase and mint NFTs.
             </p>
           </div>
 
-          {/* Connect Button */}
           <button
             onClick={handleConnect}
             className="relative w-full h-12 group"
@@ -367,7 +450,6 @@ const ConnectWalletModal = ({
             </div>
           </button>
 
-          {/* Cancel Button */}
           <button
             onClick={onClose}
             className="w-full py-3 text-gray-400 hover:text-white transition-colors text-sm [font-family:'Space_Grotesk',Helvetica]"
@@ -380,9 +462,34 @@ const ConnectWalletModal = ({
   );
 };
 
-type MintingState = 'idle' | 'checking-eligibility' | 'show-eligibility' | 'minting' | 'error' | 'not-eligible' | 'checking-mint-more' | 'not-eligible-mint-more';
+// Copy to clipboard component
+const CopyButton = ({ text, label }: { text: string; label: string }) => {
+  const [copied, setCopied] = useState(false);
 
-function MintingInterface() {
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (error) {
+      console.error('Failed to copy:', error);
+    }
+  };
+
+  return (
+    <button
+      onClick={handleCopy}
+      className="flex items-center gap-2 text-xs text-gray-400 hover:text-[#fcee0a] transition-colors"
+    >
+      {copied ? <Check size={14} /> : <Copy size={14} />}
+      {copied ? 'Copied!' : `Copy ${label}`}
+    </button>
+  );
+};
+
+type MintingState = 'idle' | 'checking-rns' | 'rns-required' | 'quantity-selection' | 'checking-balance' | 'session-created' | 'payment-ready' | 'payment-sent' | 'verifying-payment' | 'minting' | 'minting-in-progress' | 'completed' | 'error';
+
+function PaidMintingInterface() {
   const connected = useConnection();
   const activeAddress = useActiveAddress();
   const navigate = useNavigate();
@@ -390,259 +497,457 @@ function MintingInterface() {
   
   // State management
   const [state, setState] = useState<MintingState>('idle');
-  const [eligibility, setEligibility] = useState<EligibilityResponse | null>(null);
-  const [mintQuantity, setMintQuantity] = useState(1);
-  const [sessionId, setSessionId] = useState<string | null>(null);
-  const [mintProgress, setMintProgress] = useState<MintStatusResponse | null>(null);
+  const [quantity, setQuantity] = useState(1);
+  const [session, setSession] = useState<PaidMintSession | null>(null);
+  const [paymentTxId, setPaymentTxId] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [showConnectModal, setShowConnectModal] = useState(false);
+  const [mintProgress, setMintProgress] = useState<any>(null);
+  const [userBalance, setUserBalance] = useState<string>('0');
+  const [isLoading, setIsLoading] = useState(false);
+  const [isPolling, setIsPolling] = useState(false);
+  const [pollCount, setPollCount] = useState(0);
+  const [hasRNS, setHasRNS] = useState<boolean | null>(null);
+  const [rnsName, setRnsName] = useState<string | null>(null);
   
   // Check if user is on mobile
   const isMobile = () => {
-    return window.innerWidth < 1024; // lg breakpoint
+    return window.innerWidth < 1024;
   };
   
   // Scramble effects
-  const scrambledEligibleText = useScrambleText("YOU CAN MINT", state === 'show-eligibility');
+  const scrambledBuyText = useScrambleText("BUY MEKAID NFTs", state === 'quantity-selection');
+  const scrambledCheckingText = useScrambleText("CHECKING BALANCE", state === 'checking-balance');
+  const scrambledPaymentText = useScrambleText("PAYMENT READY", state === 'payment-ready');
   const scrambledMintingText = useScrambleText("MINTING IN PROGRESS", state === 'minting');
 
-  // Check eligibility function
-  const handleCheckEligibility = useCallback(async () => {
+  // Check user's token balance and create session
+  const checkBalanceAndCreateSession = useCallback(async () => {
     if (!connected || !activeAddress) {
-      // Show modal on mobile, error message on desktop
-      if (isMobile()) {
-        setShowConnectModal(true);
-        return;
-      } else {
-        setErrorMessage('Please connect your wallet to check eligibility.');
-        setState('error');
-        return;
-      }
+      setErrorMessage('Wallet not connected.');
+      setState('error');
+      setIsLoading(false);
+      return false;
     }
 
-    setState('checking-eligibility');
-    setErrorMessage('');
-    
     try {
-      const result = await checkMintEligibility(activeAddress);
-      
-      // Check if component is still mounted before updating state
-      setEligibility(result);
-      
-      if (result.success && result.eligibility.canMintMore) {
-        setState('show-eligibility');
-        setMintQuantity(Math.min(result.eligibility.remainingToMint, result.eligibility.maxBatchSize));
-      } else {
-        setState('not-eligible');
-      }
-    } catch (error: any) {
-      setErrorMessage(error.message || 'Error checking eligibility. Please try again.');
-      setState('error');
-    }
-  }, [connected, activeAddress]);
-
-  // Check mint more eligibility function
-  const handleCheckMintMore = useCallback(async () => {
-    if (!connected || !activeAddress) {
-      setErrorMessage('Please connect your wallet to check eligibility.');
-      setState('error');
-      return;
-    }
-
-    setState('checking-mint-more');
-    setErrorMessage('');
-    
-    try {
-      const result = await checkMintEligibility(activeAddress);
-      
-      // Update state only if component is still mounted
-      setEligibility(result);
-      
-      if (result.success && result.eligibility.canMintMore) {
-        setState('show-eligibility');
-        setMintQuantity(Math.min(result.eligibility.remainingToMint, result.eligibility.maxBatchSize));
-      } else {
-        setState('not-eligible-mint-more');
-      }
-    } catch (error: any) {
-      setErrorMessage(error.message || 'Error checking eligibility. Please try again.');
-      setState('error');
-    }
-  }, [connected, activeAddress]);
-
-  // Start minting function
-  const handleStartMinting = useCallback(async () => {
-    if (!connected || !activeAddress || !eligibility) {
-      setErrorMessage('Wallet not connected or eligibility not checked.');
-      setState('error');
-      return;
-    }
-
-    setState('minting');
+      setState('checking-balance');
+      setIsLoading(true);
       setErrorMessage('');
-    
-    try {
-      // Get the profile ID from the wallet address using Permaweb
+      
+            // Step 1: Check balance using AO dryrun
+      const balanceResponse = await dryrun({
+        process: PAYMENT_CONFIG.tokenId,
+        tags: [
+          { name: "Action", value: "Balance" },
+        ],
+        Owner: activeAddress
+      });
+      
+      // Parse balance from AO response with error handling
+      if (!balanceResponse.Messages || balanceResponse.Messages.length === 0) {
+        throw new Error('No balance response received from AO contract');
+      }
+      
+      const balanceTag = (balanceResponse.Messages[0]?.Tags as Tag[])?.find((tag: Tag) => tag.name === "Balance");
+      const balanceInWinstons = balanceTag?.value || "0";
+      
+      // Validate balance is a valid number
+      if (!/^\d+$/.test(balanceInWinstons)) {
+        throw new Error('Invalid balance format received from AO contract');
+      }
+      
+      // Store the balance in winstons for calculations
+      setUserBalance(balanceInWinstons);
+      console.log(`User balance: ${(Number(balanceInWinstons) / 1e18).toFixed(3)} WAR`);
+      
+      // Calculate required amount in winstons
+      const requiredAmount = BigInt(PAYMENT_CONFIG.pricePerNFT) * BigInt(quantity);
+      const userBalanceBigInt = BigInt(balanceInWinstons);
+      
+      if (userBalanceBigInt < requiredAmount) {
+        const requiredAR = (Number(requiredAmount) / 1e18).toFixed(1);
+        const availableAR = (Number(balanceInWinstons) / 1e18).toFixed(1);
+        setErrorMessage(`Insufficient balance for purchase. Required: ${requiredAR} WAR, Available: ${availableAR} WAR`);
+        setState('error');
+        setIsLoading(false);
+        return false;
+      }
+      
+      // Step 2: Create session after balance verification
+      setState('session-created');
       const profileId = await getProfileIdFromWallet(activeAddress);
       
       if (!profileId) {
         setErrorMessage('Could not get profile ID from wallet address. Please try again.');
         setState('error');
-        return;
+        setIsLoading(false);
+        return false;
       }
       
-      console.log('Profile ID for minting:', profileId);
+      console.log('Profile ID for minting session:', profileId);
       
-      const result = await startMinting(activeAddress, profileId, mintQuantity);
-      setSessionId(result.sessionId);
+      const sessionResult = await createMintingSession(activeAddress, quantity, profileId);
+      setSession(sessionResult);
+      setState('payment-ready');
+      setIsLoading(false);
       
-      // Start polling for status
-      pollMintingStatus(result.sessionId);
+      return true;
     } catch (error: any) {
-      setErrorMessage(error.message || 'Error starting mint. Please try again.');
+      console.error('Balance check or session creation failed:', error);
+      setErrorMessage(error.message || 'Failed to verify balance or create session. Please try again.');
       setState('error');
+      setIsLoading(false);
+      return false;
     }
-  }, [connected, activeAddress, eligibility, mintQuantity, getProfileIdFromWallet]);
+  }, [connected, activeAddress, quantity, getProfileIdFromWallet]);
 
-  // Poll minting status
-  const pollMintingStatus = useCallback(async (sessionId: string) => {
-    const pollInterval = setInterval(async () => {
-      try {
-        const status = await getMintStatus(sessionId);
+  // Simplified function to create session with balance checking
+  const handleCreateSession = useCallback(async () => {
+    // Strict wallet connection check - prevent any action without wallet
+    if (!connected || !activeAddress) {
+      setErrorMessage('Wallet must be connected to proceed.');
+      setState('error');
+      return;
+    }
+
+    await checkBalanceAndCreateSession();
+  }, [connected, activeAddress, checkBalanceAndCreateSession]);
+
+  // Send payment function - only called when user clicks Pay Now
+  const handleSendPayment = useCallback(async () => {
+    if (!connected || !activeAddress || !session) {
+      setErrorMessage('Session not found or wallet not connected.');
+      setState('error');
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      setErrorMessage('');
+      
+      const totalAmount = (BigInt(PAYMENT_CONFIG.pricePerNFT) * BigInt(quantity)).toString();
+      
+      const paymentResponse = await message({
+        process: PAYMENT_CONFIG.tokenId,
+        tags: [
+          { name: "Action", value: "Transfer" },
+          { name: "Recipient", value: PAYMENT_CONFIG.recipientAddress },
+          { name: "Quantity", value: totalAmount },
+          { name: "Session-Id", value: session.sessionId }
+        ],
+        signer: createDataItemSigner(window.arweaveWallet),
+        data: "",
+      });
+
+      // Only set payment-sent state if we actually got a transaction ID
+      if (paymentResponse && paymentResponse.trim() !== '') {
+        setPaymentTxId(paymentResponse);
+        setState('payment-sent');
         
-        // Debug logging for development (remove in production)
-        if (process.env.NODE_ENV === 'development') {
-          console.log('Mint Status Update:', {
-            status: status.status,
-            currentStep: status.currentStep,
-            stepsCount: status.steps?.length,
-            steps: status.steps?.map(s => ({ step: s.step, status: s.status, assetBaseName: s.assetBaseName }))
-          });
+        // Auto-verify payment after a short delay
+        setTimeout(() => {
+          handleVerifyPayment(paymentResponse);
+        }, 3000);
+      } else {
+        throw new Error('No transaction ID received from payment');
+      }
+      
+    } catch (error: any) {
+      console.error('Payment failed:', error);
+      setErrorMessage(error.message || 'Failed to send payment. Please try again.');
+      setState('error');
+      setIsLoading(false);
+    }
+  }, [connected, activeAddress, session, quantity]);
+
+
+
+  // Verify payment
+  const handleVerifyPayment = useCallback(async (txId?: string) => {
+    if (!session) {
+      setErrorMessage('No session found.');
+      setState('error');
+      setIsLoading(false);
+      return;
+    }
+
+    const transactionId = txId || paymentTxId;
+    if (!transactionId || transactionId.trim() === '') {
+      setErrorMessage('No valid transaction ID provided for verification.');
+      setState('error');
+      setIsLoading(false);
+      return;
+    }
+
+    console.log(`Verifying payment with transaction ID: ${transactionId}`);
+    setState('verifying-payment');
+    setErrorMessage('');
+
+    try {
+      const result = await verifyPayment(session.sessionId, transactionId);
+      
+      if (result.success) {
+        console.log('Payment verified successfully, starting minting...');
+        setState('minting');
+        // Start polling for minting status
+        pollMintingStatus(session.sessionId);
+      } else {
+        console.log('Payment verification failed:', result);
+        setErrorMessage('Payment verification failed. Please try again.');
+        setState('error');
+        setIsLoading(false);
+      }
+    } catch (error: any) {
+      console.error('Payment verification error:', error);
+      setErrorMessage(error.message || 'Failed to verify payment. Please try again.');
+      setState('error');
+      setIsLoading(false);
+    }
+  }, [session, paymentTxId]);
+
+  // Poll minting status with proper interval management
+  const pollMintingStatus = useCallback(async (sessionId: string) => {
+    let localPollCount = 0;
+    const maxPolls = 60; // 5 minutes max (60 * 5 seconds)
+    
+    setIsPolling(true);
+    setPollCount(0);
+    
+    const pollInterval = setInterval(async () => {
+      localPollCount++;
+      setPollCount(localPollCount);
+      
+      try {
+        console.log(`Polling mint status (attempt ${localPollCount}/${maxPolls})...`);
+        const status = await getSessionStatus(sessionId);
+        
+        if (status.success && status.session) {
+          const sessionData = status.session;
+          setSession(sessionData);
+          
+          console.log(`Session type: ${sessionData.sessionType}, status: ${sessionData.status}`);
+          
+          // Handle different session types and statuses
+          if (sessionData.status === 'completed') {
+            console.log('Minting completed!');
+            clearInterval(pollInterval);
+            setState('completed');
+            setMintProgress(sessionData);
+            setIsLoading(false);
+            setIsPolling(false);
+          } else if (sessionData.status === 'failed') {
+            console.log('Minting failed:', sessionData.error);
+            clearInterval(pollInterval);
+            setErrorMessage(sessionData.error || 'Minting failed. Please try again.');
+            setState('error');
+            setIsLoading(false);
+            setIsPolling(false);
+          } else if (sessionData.status === 'expired') {
+            console.log('Session expired');
+            clearInterval(pollInterval);
+            setErrorMessage('Session expired. Please try again.');
+            setState('error');
+            setIsLoading(false);
+            setIsPolling(false);
+          } else if (sessionData.status === 'minting' || sessionData.status === 'in_progress') {
+            // Update progress if we have minted assets
+            if (sessionData.mintedAssets && sessionData.mintedAssets.length > 0) {
+              console.log(`Minted ${sessionData.mintedAssets.length}/${quantity} NFTs`);
+            }
+            // Set state to minting-in-progress for better UX
+            if (sessionData.status === 'in_progress') {
+              setState('minting-in-progress');
+            }
+          } else if (sessionData.status === 'payment_verified') {
+            console.log('Payment verified, minting should start soon...');
+            setState('minting');
+          } else if (sessionData.status === 'pending_payment') {
+            console.log('Payment still pending...');
+          } else if (sessionData.status === 'started') {
+            console.log('Minting started...');
+            setState('minting');
+          }
+        } else {
+          console.log('Invalid status response:', status);
         }
         
-        setMintProgress(status);
-        
-        if (status.status === 'completed' || status.status === 'failed') {
+        // Stop polling if we've reached max attempts
+        if (localPollCount >= maxPolls) {
           clearInterval(pollInterval);
-          if (status.status === 'completed') {
-            // Navigate to success page with minted assets data
-            navigate('/mint/success', {
-              state: {
-                mintedAssets: status.result?.mintedAssets || [],
-                successfulMints: status.result?.batchResults.successfulMints || 0,
-                failedMints: status.result?.batchResults.failedMints || 0
-              }
-            });
-          } else {
-            setErrorMessage(status.error || 'Minting failed. Please try again.');
-            setState('error');
-          }
+          setErrorMessage('Minting is taking longer than expected. Please check your wallet for the minted NFTs.');
+          setState('error');
+          setIsLoading(false);
+          setIsPolling(false);
         }
       } catch (error: any) {
+        console.error('Polling error:', error);
         clearInterval(pollInterval);
         setErrorMessage('Error checking mint status. Please refresh and try again.');
         setState('error');
+        setIsLoading(false);
+        setIsPolling(false);
       }
-    }, 3000); // Poll every 3 seconds
+    }, 5000); // Poll every 5 seconds
 
     // Cleanup function
-    return () => clearInterval(pollInterval);
+    return () => {
+      clearInterval(pollInterval);
+      setIsPolling(false);
+    };
+  }, [quantity]);
+
+  // Check RNS ownership
+  const checkRNSOwnership = useCallback(async (walletAddress: string) => {
+    try {
+      setState('checking-rns');
+      setIsLoading(true);
+      setErrorMessage('');
+      
+      const ownsRNS = await checkHasRNSNames(walletAddress);
+      setHasRNS(ownsRNS);
+      
+      if (ownsRNS) {
+        const firstName = await getFirstRNSName(walletAddress);
+        setRnsName(firstName);
+        setState('quantity-selection');
+      } else {
+        setState('rns-required');
+      }
+      
+      setIsLoading(false);
+    } catch (error: any) {
+      console.error('RNS check failed:', error);
+      setErrorMessage('Failed to verify RNS ownership. Please try again.');
+      setState('error');
+      setIsLoading(false);
+    }
   }, []);
 
-  // Auto-check eligibility when wallet is connected (removed auto-show minted assets)
+  // Auto-connect behavior with RNS check
   useEffect(() => {
     if (connected && activeAddress && state === 'idle') {
-      handleCheckEligibility();
+      checkRNSOwnership(activeAddress);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [connected, activeAddress, state]);
+  }, [connected, activeAddress, state, checkRNSOwnership]);
 
-  // Auto-check eligibility when wallet connects after modal was shown
   useEffect(() => {
     if (connected && activeAddress && showConnectModal) {
       setShowConnectModal(false);
-      handleCheckEligibility();
+      setState('quantity-selection');
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [connected, activeAddress, showConnectModal]);
 
-  // Get progress information
-  const getProgressInfo = () => {
-    if (!mintProgress || !mintProgress.steps) return { current: 0, total: mintQuantity };
-    
-    // Count unique assets that have been successfully minted (not just completed steps)
-    const uniqueAssets = new Set();
-    mintProgress.steps.forEach(step => {
-      if (step.status === 'completed' && step.assetBaseName) {
-        uniqueAssets.add(step.assetBaseName);
-      }
-    });
-    
-    // Use the API's assetIndex if available, otherwise fall back to unique asset count
-    const currentStep = mintProgress.steps.find(step => step.status === 'in_progress');
-    const current = currentStep?.assetIndex || uniqueAssets.size;
-    const total = currentStep?.totalAssets || mintQuantity;
-    
-    // Ensure current never exceeds total
-    return { 
-      current: Math.min(current, total), 
-      total: total 
+  // Cleanup polling on unmount
+  useEffect(() => {
+    return () => {
+      setIsPolling(false);
+      setPollCount(0);
     };
+  }, []);
+
+  // Calculate total cost
+  const totalCost = {
+    winstons: (BigInt(PAYMENT_CONFIG.pricePerNFT) * BigInt(quantity)).toString(),
+    ar: (parseFloat(PAYMENT_CONFIG.pricePerNFT) / 1e18 * quantity).toFixed(1)
   };
 
-  const progressInfo = getProgressInfo();
-
-  // Get status display based on current state
+  // Get status display
   const getStatusDisplay = () => {
     switch (state) {
-      case 'checking-eligibility':
+      case 'checking-rns':
         return {
-          title: activeAddress ? `${activeAddress.slice(0, 6)}...${activeAddress.slice(-4)}` : '',
-          message: 'Checking mint eligibility...',
+          title: 'CHECKING ARNS OWNERSHIP',
+          message: 'Verifying your ARNS (Arweave Name Service) ownership...',
           messageColor: 'text-yellow-400',
           showControls: false
         };
       
-      case 'checking-mint-more':
-      return {
-        title: activeAddress ? `${activeAddress.slice(0, 6)}...${activeAddress.slice(-4)}` : '',
-          message: 'Checking mint eligibility...',
-        messageColor: 'text-yellow-400',
-          showControls: false
-      };
-      
-      case 'show-eligibility':
+      case 'rns-required':
         return {
-          title: `${scrambledEligibleText} ${eligibility?.eligibility.remainingToMint || 0} NFTs`,
-          message: eligibility?.eligibility.remainingToMint === 1 ? 'You can mint 1 NFT' : `Select quantity (max ${Math.min(eligibility?.eligibility.remainingToMint || 0, eligibility?.eligibility.maxBatchSize || 10)} at once)`,
+          title: 'ARNS OWNERSHIP REQUIRED',
+          message: 'This mint is exclusive to ARNS (Arweave Name Service) owners. Please visit arns.app to purchase an ARNS name.',
+          messageColor: 'text-red-400',
+          showControls: false
+        };
+      
+      case 'quantity-selection':
+        return {
+          title: scrambledBuyText,
+          message: connected && activeAddress && rnsName ? 
+            `Welcome ${rnsName}! Select quantity (0.5 WAR per NFT)` : 
+            connected && activeAddress ? 
+            `Select quantity (0.5 WAR per NFT)` : 
+            `Connect wallet to select quantity and mint`,
+          messageColor: connected && activeAddress ? 'text-[#fcee0a]' : 'text-red-400',
+          showControls: connected && activeAddress
+        };
+      
+      case 'checking-balance':
+        return {
+          title: scrambledCheckingText,
+          message: 'Checking your WAR token balance...',
+          messageColor: 'text-yellow-400',
+          showControls: false
+        };
+      
+      case 'session-created':
+        return {
+          title: 'SESSION CREATED',
+          message: 'Session created successfully, preparing payment...',
           messageColor: 'text-green-400',
-          showControls: true
+          showControls: false
+        };
+      
+      case 'payment-ready':
+        return {
+          title: scrambledPaymentText,
+          message: 'Ready to send payment - click Pay Now to proceed',
+          messageColor: 'text-yellow-400',
+          showControls: false
+        };
+      
+      case 'payment-sent':
+        return {
+          title: 'PAYMENT SENT',
+          message: paymentTxId ? 
+            `Payment sent successfully (TX: ${paymentTxId.slice(0, 8)}...), verifying...` : 
+            'Payment sent successfully, verifying...',
+          messageColor: 'text-yellow-400',
+          showControls: false
+        };
+      
+      case 'verifying-payment':
+        return {
+          title: 'VERIFYING PAYMENT',
+          message: paymentTxId ? 
+            `Verifying transaction ${paymentTxId.slice(0, 8)}...` : 
+            'Please wait while we verify your payment...',
+          messageColor: 'text-yellow-400',
+          showControls: false
         };
       
       case 'minting':
-        const currentStep = mintProgress?.steps?.find(step => step.status === 'in_progress');
-        const stepMessage = currentStep?.step ? ` (${currentStep.step.replace('minting_asset_', 'Asset ')})` : '';
-        
         return {
           title: scrambledMintingText,
-          message: `Minting ${progressInfo.current}/${progressInfo.total} NFTs...`,
+          message: `Minting ${quantity} NFT${quantity > 1 ? 's' : ''}... (${session?.mintedAssets?.length || 0}/${quantity} completed)`,
           messageColor: 'text-[#fcee0a]',
           showControls: false
         };
       
-      case 'not-eligible':
+      case 'minting-in-progress':
         return {
-          title: activeAddress ? `${activeAddress.slice(0, 6)}...${activeAddress.slice(-4)}` : '',
-          message: 'Wallet is not eligible for minting.',
-          messageColor: 'text-red-400',
+          title: 'MINTING IN PROGRESS',
+          message: `Processing ${quantity} NFT${quantity > 1 ? 's' : ''}... (${session?.mintedAssets?.length || 0}/${quantity} completed)`,
+          messageColor: 'text-[#fcee0a]',
           showControls: false
         };
       
-      case 'not-eligible-mint-more':
+      case 'completed':
         return {
-          title: 'Oops!',
-          message: 'You are not eligible to mint more in this phase.',
-          messageColor: 'text-red-400',
+          title: 'MINTING COMPLETED!',
+          message: `Successfully minted ${session?.mintedAssets?.length || 0} NFT${session?.mintedAssets?.length !== 1 ? 's' : ''}`,
+          messageColor: 'text-green-400',
           showControls: false
         };
       
@@ -656,8 +961,8 @@ function MintingInterface() {
       
       default:
         return {
-          title: connected && activeAddress ? `${activeAddress.slice(0, 6)}...${activeAddress.slice(-4)}` : 'Connect Wallet to Mint',
-          message: 'Click the button below to check your mint eligibility',
+          title: connected && activeAddress ? `${activeAddress.slice(0, 6)}...${activeAddress.slice(-4)}` : 'Connect Wallet to Buy',
+          message: 'Connect your wallet to purchase MEKA NFTs',
           messageColor: 'text-gray-400',
           showControls: false
         };
@@ -665,18 +970,16 @@ function MintingInterface() {
   };
 
   const statusDisplay = getStatusDisplay();
-  const maxQuantity = eligibility ? Math.min(eligibility.eligibility.remainingToMint, eligibility.eligibility.maxBatchSize) : 10;
 
   return (
     <Background>
-      {/* Main Content */}
       <div className="min-h-screen flex flex-col items-center justify-center px-4 sm:px-6 lg:px-8 py-20">
         <div className="w-full max-w-4xl mx-auto">
           {/* Header */}
           <div className="text-center mb-8 sm:mb-12">
             <div className="space-y-3 sm:space-y-4">
               <h1 className="[font-family:'Space_Grotesk',Helvetica] font-bold text-[#fcee0a] text-2xl sm:text-3xl lg:text-4xl tracking-[1.5px] lg:tracking-[2px] leading-tight">
-                MINT MEKA NFTs
+                BUY MEKAID NFTs
               </h1>
               <div 
                 className="w-full max-w-[280px] sm:max-w-[320px] h-[3px] bg-[url(/line-seperator.svg)] bg-no-repeat bg-center mx-auto"
@@ -685,28 +988,18 @@ function MintingInterface() {
                   filter: 'brightness(0) saturate(100%) invert(92%) sepia(97%) saturate(1352%) hue-rotate(348deg) brightness(103%) contrast(103%)',
                 }}
               />
+              <p className="[font-family:'Space_Grotesk',Helvetica] font-normal text-[#c4c4c4] text-sm sm:text-base tracking-[1.20px]">
+                0.5 WAR per NFT for  ARNS Owners Only
+              </p>
             </div>
-
-            {(state === 'checking-eligibility' || state === 'checking-mint-more') && connected && activeAddress && (
-              <div className="mt-4 text-center">
-                <div className="[font-family:'Space_Grotesk',Helvetica] font-normal text-[#c4c4c4] text-sm sm:text-base lg:text-lg tracking-[1.20px] leading-normal">
-                  <span className="font-light tracking-[0.29px]">
-                    Checking eligibility for wallet:{" "}
-                  </span>
-                  <span className="font-bold tracking-[0.29px] break-all">
-                    {`${activeAddress.slice(0, 6)}...${activeAddress.slice(-4)}`}
-                  </span>
-                </div>
-              </div>
-            )}
           </div>
 
           {/* Status Card */}
           <Card className="w-full max-w-3xl mx-auto border-[0.5px] border-solid border-[#646464] rounded-lg bg-black/50 backdrop-blur-sm mb-8">
-            <CardContent className="flex flex-col items-center p-6 sm:p-8 justify-center min-h-[200px] space-y-6">
+            <CardContent className="flex flex-col items-center p-6 sm:p-8 justify-center min-h-[300px] space-y-6">
               <div className="flex flex-col items-center w-full">
                 <div className={`[font-family:'Space_Grotesk',Helvetica] font-bold text-lg sm:text-xl text-center tracking-[0] leading-7 ${
-                  state === 'show-eligibility' ? 'text-[#fcee0a]' : 'text-white'
+                  state === 'quantity-selection' || state === 'completed' ? 'text-[#fcee0a]' : 'text-white'
                 }`}>
                   {statusDisplay.title}
                 </div>
@@ -721,23 +1014,197 @@ function MintingInterface() {
               )}
 
               {/* Quantity Slider */}
-              {state === 'show-eligibility' && eligibility && eligibility.eligibility.remainingToMint > 1 && (
-                <div className="w-full max-w-md">
+              {state === 'quantity-selection' && connected && activeAddress && (
+                <div className="w-full max-w-md space-y-4">
+                  {/* RNS Ownership Badge */}
+                  
+                  
                   <QuantitySlider 
-                    max={maxQuantity}
-                    value={mintQuantity}
-                    onChange={setMintQuantity}
+                    max={PAYMENT_CONFIG.maxQuantity}
+                    value={quantity}
+                    onChange={setQuantity}
                   />
+                  <div className="text-center">
+                    <div className="text-[#fcee0a] text-lg font-bold">
+                      Total: {totalCost.ar} WAR
+                    </div>
+                    
+                  </div>
                 </div>
               )}
 
-              {/* Progress Bar */}
-              {state === 'minting' && (
-                <div className="w-full max-w-md space-y-2">
-                  <ProgressBar current={progressInfo.current} total={progressInfo.total} />
-                  <div className="text-center text-sm text-gray-400">
-                    {progressInfo.current}/{progressInfo.total} NFTs minted
+              {/* Payment Instructions */}
+              {state === 'payment-ready' && session && !paymentTxId && (
+                <div className="w-full max-w-md space-y-4">
+                  <div className="bg-gray-800/50 rounded-lg p-4 space-y-3">
+                    <div className="text-center text-[#fcee0a] font-bold">
+                      Payment Required: {session.paymentRequired?.total.ar || session.paymentAmount?.ar || '0'} WAR
+                    </div>
+                    
+                    <div className="space-y-2 text-xs">
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">Recipient:</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-white font-mono">{PAYMENT_CONFIG.recipientAddress.slice(0, 8)}...</span>
+                          <CopyButton text={PAYMENT_CONFIG.recipientAddress} label="address" />
+                        </div>
+                      </div>
+                      
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">Amount:</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-white font-mono">{session.paymentRequired?.total.ar || session.paymentAmount?.ar || '0'}</span>
+                          <CopyButton text={session.paymentRequired?.total.winstons || session.paymentAmount?.winstons || '0'} label="amount" />
+                        </div>
+                      </div>
+                      
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">Session ID:</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-white font-mono">{session.sessionId.slice(0, 8)}...</span>
+                          <CopyButton text={session.sessionId} label="session" />
+                        </div>
+                      </div>
+                    </div>
                   </div>
+                  
+                  <button
+                    onClick={handleSendPayment}
+                    disabled={isLoading}
+                    className={`relative w-full h-12 group ${
+                      isLoading ? 'opacity-50 cursor-not-allowed' : 'hover:opacity-80'
+                    }`}
+                  >
+                    <img
+                      className="absolute w-full h-[47px] top-0.5 left-0.5"
+                      alt="Glitch effect"
+                      src="/glitch.svg"
+                    />
+                    <img
+                      className="absolute w-full h-[47px] top-0 left-0"
+                      alt="Button background"
+                      src="/subtract.svg"
+                    />
+                    <div className="absolute inset-0 flex items-center justify-center [font-family:'Space_Grotesk',Helvetica] font-bold text-white text-sm tracking-wider uppercase">
+                      {isLoading ? (
+                        <div className="flex items-center gap-2">
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                          Sending...
+                        </div>
+                      ) : (
+                        'Pay Now'
+                      )}
+                    </div>
+                  </button>
+                </div>
+              )}
+
+              {/* Payment Status Display */}
+              {paymentTxId && (state === 'payment-sent' || state === 'verifying-payment') && (
+                <div className="w-full max-w-md space-y-4">
+                  <div className="bg-gray-800/50 rounded-lg p-4 space-y-3">
+                    <div className="text-center text-[#fcee0a] font-bold">
+                      Transaction ID: {paymentTxId.slice(0, 12)}...
+                    </div>
+                    
+                    <div className="space-y-2 text-xs">
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">Status:</span>
+                        <span className="text-white font-medium">
+                          {state === 'payment-sent' ? 'Payment Sent' : 'Verifying Payment'}
+                        </span>
+                      </div>
+                      
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">Amount:</span>
+                        <span className="text-white font-mono">{session?.paymentRequired?.total.ar || session?.paymentAmount?.ar || '0'} WAR</span>
+                      </div>
+                      
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">Session:</span>
+                        <span className="text-white font-mono">{session?.sessionId.slice(0, 8)}...</span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="text-center">
+                    <div className="w-4 h-4 border-2 border-[#fcee0a] border-t-transparent rounded-full animate-spin mx-auto"></div>
+                    <div className="text-sm text-gray-400 mt-2">
+                      {state === 'payment-sent' ? 'Processing payment...' : 'Verifying transaction...'}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Minting Progress */}
+              {(state === 'minting' || state === 'minting-in-progress') && (
+                <div className="w-full max-w-md space-y-4">
+                  <ProgressBar current={session?.mintedAssets?.length || 0} total={quantity} />
+                  <div className="text-center space-y-2">
+                    <div className="text-sm text-gray-400">
+                      {session?.mintedAssets?.length || 0}/{quantity} NFTs minted
+                    </div>
+                    
+                  </div>
+                </div>
+              )}
+
+              {/* RNS Checking Loading */}
+              {state === 'checking-rns' && (
+                <div className="w-full max-w-md space-y-4">
+                  <div className="text-center space-y-4">
+                    <div className="w-8 h-8 border-2 border-[#fcee0a] border-t-transparent rounded-full animate-spin mx-auto"></div>
+                    <div className="text-sm text-gray-400">
+                      Checking ARNS ownership...
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* RNS Required Message */}
+              {state === 'rns-required' && (
+                <div className="w-full max-w-md space-y-4">
+                  <div className="bg-red-900/20 border border-red-500/30 rounded-lg p-6 text-center space-y-4">
+                    <div className="w-16 h-16 mx-auto bg-red-500/20 rounded-full flex items-center justify-center">
+                      <AlertCircle className="w-8 h-8 text-red-400" />
+                    </div>
+                    
+                    <div>
+                      <h3 className="text-lg font-bold text-red-400 mb-2">
+                        ARNS Ownership Required
+                      </h3>
+                      <p className="text-gray-300 text-sm leading-relaxed">
+                        This mint is exclusive to ARNS (Arweave Name Service) owners. 
+                        You need to own an ARNS name to participate in this mint.
+                      </p>
+                    </div>
+                    
+                    <button
+                      onClick={() => window.open('https://arns.app', '_blank')}
+                      className="relative w-full h-12 group"
+                    >
+                      <img
+                        className="absolute w-full h-[47px] top-0.5 left-0.5"
+                        alt="Glitch effect"
+                        src="/glitch.svg"
+                      />
+                      <img
+                        className="absolute w-full h-[47px] top-0 left-0"
+                        alt="Button background"
+                        src="/subtract.svg"
+                      />
+                      <div className="absolute inset-0 flex items-center justify-center [font-family:'Space_Grotesk',Helvetica] font-bold text-white text-sm tracking-wider uppercase">
+                        Visit ARNS.APP
+                      </div>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Minted NFTs Display */}
+              {state === 'completed' && session?.mintedAssets && session.mintedAssets.length > 0 && (
+                <div className="w-full">
+                  <NFTGrid nfts={session.mintedAssets} />
                 </div>
               )}
             </CardContent>
@@ -759,34 +1226,86 @@ function MintingInterface() {
             </button>
 
             {/* Main Action Button */}
-            <button 
-              onClick={
-                state === 'idle' || state === 'error' || state === 'not-eligible' || state === 'not-eligible-mint-more'
-                  ? handleCheckEligibility 
-                  : state === 'show-eligibility'
-                  ? handleStartMinting
-                  : undefined
-              }
-              disabled={state === 'checking-eligibility' || state === 'checking-mint-more' || state === 'minting'}
-              className="relative w-[200px] sm:w-[240px] h-[50px] sm:h-[60px] order-1 sm:order-2 disabled:opacity-50 hover:opacity-80 transition-opacity"
-            >
-              <img
-                className="absolute w-full h-[47px] sm:h-[57px] top-0.5 left-0.5"
-                alt="Glitch"
-                src="/glitch.svg"
-              />
-              <img
-                className="absolute w-full h-[47px] sm:h-[57px] top-0 left-0"
-                alt="Subtract"
-                src="/subtract.svg"
-              />
-              <div className="absolute inset-0 flex items-center justify-center [font-family:'Space_Grotesk',Helvetica] font-bold text-white text-sm sm:text-base tracking-wider uppercase">
-                {state === 'checking-eligibility' || state === 'checking-mint-more' ? 'Checking...' 
-                 : state === 'minting' ? 'Minting...'
-                 : state === 'show-eligibility' ? 'Start Minting'
-                 : 'Check Eligibility'}
-              </div>
-            </button>
+            {(state === 'idle' || state === 'error' || state === 'quantity-selection' || state === 'rns-required') && (
+              <button 
+                onClick={state === 'quantity-selection' && connected && activeAddress ? handleCreateSession : () => {
+                  if (!connected || !activeAddress) {
+                    if (isMobile()) {
+                      setShowConnectModal(true);
+                    } else {
+                      setErrorMessage('Please connect your wallet first.');
+                      setState('error');
+                    }
+                  } else if (state === 'rns-required') {
+                    // Retry RNS check
+                    if (activeAddress) {
+                      checkRNSOwnership(activeAddress);
+                    }
+                  } else {
+                    setState('quantity-selection');
+                  }
+                }}
+                disabled={isLoading || (state === 'quantity-selection' && (!connected || !activeAddress))}
+                className={`relative w-[200px] sm:w-[240px] h-[50px] sm:h-[60px] order-1 sm:order-2 transition-opacity ${
+                  isLoading || (state === 'quantity-selection' && (!connected || !activeAddress)) ? 'opacity-50 cursor-not-allowed' : 'hover:opacity-80'
+                }`}
+              >
+                <img
+                  className="absolute w-full h-[47px] sm:h-[57px] top-0.5 left-0.5"
+                  alt="Glitch"
+                  src="/glitch.svg"
+                />
+                <img
+                  className="absolute w-full h-[47px] sm:h-[57px] top-0 left-0"
+                  alt="Subtract"
+                  src="/subtract.svg"
+                />
+                <div className="absolute inset-0 flex items-center justify-center [font-family:'Space_Grotesk',Helvetica] font-bold text-white text-sm sm:text-base tracking-wider uppercase">
+                  {isLoading ? (
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      Loading...
+                    </div>
+                  ) : (
+                    state === 'quantity-selection' ? 
+                      (connected && activeAddress ? 'MINT NOW ' : 'Connect Wallet') : 
+                    state === 'rns-required' ? 
+                      'Retry ARNS Check' : 
+                      'Start Purchase'
+                  )}
+                </div>
+              </button>
+            )}
+
+            {/* Buy More Button for completed state */}
+            {state === 'completed' && (
+              <button 
+                onClick={() => {
+                  setState('quantity-selection');
+                  setSession(null);
+                  setPaymentTxId('');
+                  setQuantity(1);
+                  setErrorMessage('');
+                  setIsLoading(false);
+                  setMintProgress(null);
+                }}
+                className="relative w-[200px] sm:w-[240px] h-[50px] sm:h-[60px] order-1 sm:order-2 hover:opacity-80 transition-opacity"
+              >
+                <img
+                  className="absolute w-full h-[47px] sm:h-[57px] top-0.5 left-0.5"
+                  alt="Glitch"
+                  src="/glitch.svg"
+                />
+                <img
+                  className="absolute w-full h-[47px] sm:h-[57px] top-0 left-0"
+                  alt="Subtract"
+                  src="/subtract.svg"
+                />
+                <div className="absolute inset-0 flex items-center justify-center [font-family:'Space_Grotesk',Helvetica] font-bold text-white text-sm sm:text-base tracking-wider uppercase">
+                  Buy More
+                </div>
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -800,4 +1319,4 @@ function MintingInterface() {
   );
 }
 
-export default MintingInterface;
+export default PaidMintingInterface;

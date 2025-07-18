@@ -67,7 +67,7 @@ export function NFTSelector({ onSearch, loading = false, error }: NFTSelectorPro
 
         <div className="text-center">
           <p className="text-gray-500 text-xs">
-            💡 Tip: You can find your Asset ID on{' '}
+             Tip: You can find your Asset ID on{' '}
             <a 
               href="https://bazar.ar.io" 
               target="_blank" 

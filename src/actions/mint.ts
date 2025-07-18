@@ -154,7 +154,7 @@ export async function startMinting(
 // Poll minting status
 export async function getMintStatus(sessionId: string): Promise<MintStatusResponse> {
   try {
-    const response = await fetch(`${API_BASE_URL}/mint/status/${sessionId}`);
+    const response = await fetch(`${API_BASE_URL}/paid-mint/status/${sessionId}`);
     const data = await response.json();
     
     if (!response.ok) {
