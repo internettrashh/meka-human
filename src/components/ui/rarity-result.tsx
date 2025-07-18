@@ -13,9 +13,19 @@ export function RarityResult({ rarityResult, onBack }: RarityResultProps) {
     traitMap.set(trait.trait_type, trait.value);
   });
 
-  // Count actual traits (excluding "No Trait" values)
+  // Count actual traits (excluding "No [Something]" values)
+  const noTraitValues = new Set([
+    'No Augmentation',
+    'No Facial Gear', 
+    'No Hair (Synth-Scalp)',
+    'No Headgear',
+    'No Jacket',
+    'No Rig',
+    'No Top'
+  ]);
+  
   const actualTraitCount = rarityResult.traits.filter(trait => 
-    trait.value && trait.value !== 'No Trait' && trait.value !== 'No Augmentation' && trait.value !== 'No Headgear' && trait.value !== 'No Facial Gear' && trait.value !== 'No Jacket' && trait.value !== 'No Top' && trait.value !== 'No Rig'
+    trait.value && !noTraitValues.has(trait.value)
   ).length;
 
   // Function to open NFT on Bazar
@@ -27,7 +37,7 @@ export function RarityResult({ rarityResult, onBack }: RarityResultProps) {
   const columns = [
     ['BODY CONTAINERS', 'BACK', 'HAT', 'HAIRS'],           // Left column
     ['EYES', 'ACCESSORY', 'FACE', 'TOP'],                  // Middle column  
-    ['BEARDS', 'JACKET', 'SKIN COLOR', 'BACKGROUNDS']      // Right column
+    ['BEARDS', 'JACKET', 'Skin Color', 'Backgrounds']      // Right column
   ];
 
   return (
