@@ -367,7 +367,7 @@ function RarityPage() {
                 No minted NFTs found in your wallet
               </div>
               <div className="text-gray-500 text-xs">
-                🎮 Mint your first Meka Human NFT to unlock rarity analysis
+              Mint your first Meka Human NFT to unlock rarity analysis
               </div>
             </div>
           )}

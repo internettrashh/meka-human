@@ -186,8 +186,9 @@ const QuantitySlider = ({
 const PAYMENT_CONFIG = {
   recipientAddress: 'TqcUc15NJ2U5OxbXEUu2DkUYvYFyIADS6Wi-_A8-e7M',
   tokenId: 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
-  pricePerNFT: '500000000000000000', // 0.5 WAR (18 decimals)
-  maxQuantity: 10
+  pricePerNFT: '500000000000', // 0.5 WAR (12 decimals)
+  maxQuantity: 10,
+  decimals: 12 // wAR token uses 12 decimals
 };
 
 // API configuration
@@ -535,39 +536,74 @@ function PaidMintingInterface() {
       setIsLoading(true);
       setErrorMessage('');
       
-            // Step 1: Check balance using AO dryrun
+      // Step 1: Check balance using AO dryrun with correct process ID
+      console.log('Starting balance check with dryrun...');
+      console.log('Process ID:', PAYMENT_CONFIG.tokenId);
+      console.log('Active Address:', activeAddress);
+      
       const balanceResponse = await dryrun({
         process: PAYMENT_CONFIG.tokenId,
         tags: [
           { name: "Action", value: "Balance" },
+          { name: "Recipient", value: activeAddress },
+          { name: "Data-Protocol", value: "ao" },
+          { name: "Type", value: "Message" },
+          { name: "Variant", value: "ao.TN.1" }
         ],
         Owner: activeAddress
       });
       
-      // Parse balance from AO response with error handling
-      if (!balanceResponse.Messages || balanceResponse.Messages.length === 0) {
-        throw new Error('No balance response received from AO contract');
+      // console.log('=== FULL DRYRUN RESPONSE ===');
+      // console.log(JSON.stringify(balanceResponse, null, 2));
+      // console.log('=== END DRYRUN RESPONSE ===');
+      
+      const balanceData = balanceResponse;
+      
+      // Parse balance from API response with error handling
+      if (!balanceData.Messages || balanceData.Messages.length === 0) {
+        console.error('No messages in response:', balanceData);
+        throw new Error('No balance response received from API');
       }
       
-      const balanceTag = (balanceResponse.Messages[0]?.Tags as Tag[])?.find((tag: Tag) => tag.name === "Balance");
+      console.log('Messages found:', balanceData.Messages.length);
+      console.log('First message:', balanceData.Messages[0]);
+      console.log('First message tags:', balanceData.Messages[0]?.Tags);
+      
+      const balanceTag = balanceData.Messages[0]?.Tags?.find((tag: Tag) => tag.name === "Balance");
       const balanceInWinstons = balanceTag?.value || "0";
+      
+      console.log('Balance tag found:', balanceTag);
+      console.log('Balance in winstons (raw):', balanceInWinstons);
+      console.log('Balance in winstons (type):', typeof balanceInWinstons);
       
       // Validate balance is a valid number
       if (!/^\d+$/.test(balanceInWinstons)) {
-        throw new Error('Invalid balance format received from AO contract');
+        throw new Error('Invalid balance format received from API');
       }
       
       // Store the balance in winstons for calculations
       setUserBalance(balanceInWinstons);
-      console.log(`User balance: ${(Number(balanceInWinstons) / 1e18).toFixed(3)} WAR`);
+      
+      // Test different decimal places to find the correct one
+      const balanceWith18Decimals = (Number(balanceInWinstons) / 1e18);
+      const balanceWith12Decimals = (Number(balanceInWinstons) / 1e12);
+      const balanceWith6Decimals = (Number(balanceInWinstons) / 1e6);
+      
+      // console.log(`User balance: ${balanceInWinstons} winstons`);
+      // console.log('With 18 decimals (1e18):', balanceWith18Decimals, 'WAR');
+      // console.log('With 12 decimals (1e12):', balanceWith12Decimals, 'WAR');
+      // console.log('With 6 decimals (1e6):', balanceWith6Decimals, 'WAR');
+      
+      // Based on your expectation of 0.1 WAR from 100000000000, it should be 12 decimals
+      const balanceInAR = balanceWith12Decimals;
       
       // Calculate required amount in winstons
       const requiredAmount = BigInt(PAYMENT_CONFIG.pricePerNFT) * BigInt(quantity);
       const userBalanceBigInt = BigInt(balanceInWinstons);
       
       if (userBalanceBigInt < requiredAmount) {
-        const requiredAR = (Number(requiredAmount) / 1e18).toFixed(1);
-        const availableAR = (Number(balanceInWinstons) / 1e18).toFixed(1);
+        const requiredAR = (Number(requiredAmount) / 1e12).toFixed(1);
+        const availableAR = (Number(balanceInWinstons) / 1e12).toFixed(1);
         setErrorMessage(`Insufficient balance for purchase. Required: ${requiredAR} WAR, Available: ${availableAR} WAR`);
         setState('error');
         setIsLoading(false);
@@ -628,6 +664,7 @@ function PaidMintingInterface() {
       
       const totalAmount = (BigInt(PAYMENT_CONFIG.pricePerNFT) * BigInt(quantity)).toString();
       
+      // Send payment using AO message function
       const paymentResponse = await message({
         process: PAYMENT_CONFIG.tokenId,
         tags: [
@@ -640,14 +677,16 @@ function PaidMintingInterface() {
         data: "",
       });
 
+      const transactionId = paymentResponse;
+
       // Only set payment-sent state if we actually got a transaction ID
-      if (paymentResponse && paymentResponse.trim() !== '') {
-        setPaymentTxId(paymentResponse);
+      if (transactionId && transactionId.trim() !== '') {
+        setPaymentTxId(transactionId);
         setState('payment-sent');
         
         // Auto-verify payment after a short delay
         setTimeout(() => {
-          handleVerifyPayment(paymentResponse);
+          handleVerifyPayment(transactionId);
         }, 3000);
       } else {
         throw new Error('No transaction ID received from payment');
@@ -849,7 +888,7 @@ function PaidMintingInterface() {
   // Calculate total cost
   const totalCost = {
     winstons: (BigInt(PAYMENT_CONFIG.pricePerNFT) * BigInt(quantity)).toString(),
-    ar: (parseFloat(PAYMENT_CONFIG.pricePerNFT) / 1e18 * quantity).toFixed(1)
+    ar: (parseFloat(PAYMENT_CONFIG.pricePerNFT) / Math.pow(10, PAYMENT_CONFIG.decimals) * quantity).toFixed(1)
   };
 
   // Get status display
@@ -1017,6 +1056,9 @@ function PaidMintingInterface() {
               {state === 'quantity-selection' && connected && activeAddress && (
                 <div className="w-full max-w-md space-y-4">
                   {/* RNS Ownership Badge */}
+                 
+                  
+                 
                   
                   
                   <QuantitySlider 

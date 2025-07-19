@@ -114,22 +114,30 @@ export async function getWalletOwnedNames(walletAddress: string): Promise<{ name
     }
 }
 
-// Helper function to check if wallet has any RNS names
+// Helper function to check if wallet has any valid RNS names
 export async function hasRNSNames(walletAddress: string): Promise<boolean> {
     try {
         const ownedNames = await getWalletOwnedNames(walletAddress);
-        return ownedNames.length > 0;
+        // Only consider names that are different from their processId
+        const validNames = ownedNames.filter(({ name, processId }) => name !== processId);
+        console.log('Found RNS names:', ownedNames);
+        console.log('Valid RNS names:', validNames);
+        return validNames.length > 0;
     } catch (error) {
         console.error("Error checking RNS names:", error);
         return false;
     }
 }
 
-// Helper function to get the first RNS name for display
+// Helper function to get the first valid RNS name for display
 export async function getFirstRNSName(walletAddress: string): Promise<string | null> {
     try {
         const ownedNames = await getWalletOwnedNames(walletAddress);
-        return ownedNames.length > 0 ? ownedNames[0].name : null;
+        // Find first name that's different from its processId
+        const validName = ownedNames.find(({ name, processId }) => name !== processId);
+        console.log('Looking for valid RNS name among:', ownedNames);
+        console.log('Found valid name:', validName);
+        return validName ? validName.name : null;
     } catch (error) {
         console.error("Error getting first RNS name:", error);
         return null;
