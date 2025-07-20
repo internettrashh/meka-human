@@ -846,7 +846,7 @@ function PaidMintingInterface() {
       const ownsRNS = await checkHasRNSNames(walletAddress);
       setHasRNS(ownsRNS);
       
-      if (!ownsRNS) {
+      if (ownsRNS) {
         const firstName = await getFirstRNSName(walletAddress);
         setRnsName(firstName);
         setState('quantity-selection');
