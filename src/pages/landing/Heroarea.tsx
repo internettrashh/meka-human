@@ -53,8 +53,8 @@ export const HeroArea = () => {
               onClick={handleCheckEligibility}
             >
               <CardContent className="p-0">
-                <div className="absolute top-[91px] left-[44px] font-['Advent_Pro',Helvetica] font-bold text-white text-base tracking-[0.80px] leading-normal whitespace-nowrap">
-                  <TextScramble text="MEKA NFT MINTING IS LIVE!" />
+                <div className="absolute top-[91px] left-[65px] font-['Advent_Pro',Helvetica] font-bold text-white text-base tracking-[0.80px] leading-normal whitespace-nowrap">
+                  <TextScramble text="PUBLIC MINTING LIVE!" />
                 </div>
                 <div className="absolute w-[338px] h-[81px] top-0 left-0">
                   <div className="absolute top-[71px] left-[161px] font-['Advent_Pro',Helvetica] font-medium text-white text-[8px] tracking-[0.40px] leading-normal">

@@ -6,7 +6,6 @@ import { useNavigate } from 'react-router-dom'
 import { usePermawebProvider } from '@/providers/PermawebProvider'
 import { ExternalLink, X, Wallet, Copy, Check, AlertCircle } from 'lucide-react'
 import { createDataItemSigner, dryrun, message } from "@permaweb/aoconnect"
-import { hasRNSNames as checkHasRNSNames, getFirstRNSName } from '@/services/rns'
 
 // Types for AO responses
 interface Tag {
@@ -186,7 +185,7 @@ const QuantitySlider = ({
 const PAYMENT_CONFIG = {
   recipientAddress: 'TqcUc15NJ2U5OxbXEUu2DkUYvYFyIADS6Wi-_A8-e7M',
   tokenId: 'xU9zFkq3X2ZQ6olwNVvr1vUWIjc3kXTWr7xKQD6dh10',
-  pricePerNFT: '500000000000', // 0.5 WAR (12 decimals)
+  pricePerNFT: '1000000000000', // 1 WAR (12 decimals)
   maxQuantity: 10,
   decimals: 12 // wAR token uses 12 decimals
 };
@@ -488,7 +487,7 @@ const CopyButton = ({ text, label }: { text: string; label: string }) => {
   );
 };
 
-type MintingState = 'idle' | 'checking-rns' | 'rns-required' | 'quantity-selection' | 'checking-balance' | 'session-created' | 'payment-ready' | 'payment-sent' | 'verifying-payment' | 'minting' | 'minting-in-progress' | 'completed' | 'error';
+type MintingState = 'idle' | 'quantity-selection' | 'checking-rns' | 'rns-required' | 'checking-balance' | 'session-created' | 'payment-ready' | 'payment-sent' | 'verifying-payment' | 'minting' | 'minting-in-progress' | 'completed' | 'error';
 
 function PaidMintingInterface() {
   const connected = useConnection();
@@ -497,7 +496,7 @@ function PaidMintingInterface() {
   const { getProfileIdFromWallet } = usePermawebProvider();
   
   // State management
-  const [state, setState] = useState<MintingState>('idle');
+  const [state, setState] = useState<MintingState>('quantity-selection'); // Allow anyone to mint
   const [quantity, setQuantity] = useState(1);
   const [session, setSession] = useState<PaidMintSession | null>(null);
   const [paymentTxId, setPaymentTxId] = useState('');
@@ -508,8 +507,6 @@ function PaidMintingInterface() {
   const [isLoading, setIsLoading] = useState(false);
   const [isPolling, setIsPolling] = useState(false);
   const [pollCount, setPollCount] = useState(0);
-  const [hasRNS, setHasRNS] = useState<boolean | null>(null);
-  const [rnsName, setRnsName] = useState<string | null>(null);
   
   // Check if user is on mobile
   const isMobile = () => {
@@ -836,46 +833,29 @@ function PaidMintingInterface() {
     };
   }, [quantity]);
 
-  // Check RNS ownership
-  const checkRNSOwnership = useCallback(async (walletAddress: string) => {
-    try {
-      setState('checking-rns');
-      setIsLoading(true);
-      setErrorMessage('');
-      
-      const ownsRNS = await checkHasRNSNames(walletAddress);
-      setHasRNS(ownsRNS);
-      
-      if (ownsRNS) {
-        const firstName = await getFirstRNSName(walletAddress);
-        setRnsName(firstName);
-        setState('quantity-selection');
-      } else {
-        setState('rns-required');
-      }
-      
-      setIsLoading(false);
-    } catch (error: any) {
-      console.error('RNS check failed:', error);
-      setErrorMessage('Failed to verify RNS ownership. Please try again.');
-      setState('error');
-      setIsLoading(false);
-    }
+  // Cleanup polling on unmount
+  useEffect(() => {
+    return () => {
+      setIsPolling(false);
+      setPollCount(0);
+    };
   }, []);
 
-  // Auto-connect behavior with RNS check
+  // Auto-connect behavior - skip RNS check for public minting
   useEffect(() => {
     if (connected && activeAddress && state === 'idle') {
-      checkRNSOwnership(activeAddress);
-    }
-  }, [connected, activeAddress, state, checkRNSOwnership]);
-
-  useEffect(() => {
-    if (connected && activeAddress && showConnectModal) {
-      setShowConnectModal(false);
+      // Skip RNS check and go directly to quantity selection
       setState('quantity-selection');
     }
-  }, [connected, activeAddress, showConnectModal]);
+  }, [connected, activeAddress, state]);
+
+  // Cleanup polling on unmount
+  useEffect(() => {
+    return () => {
+      setIsPolling(false);
+      setPollCount(0);
+    };
+  }, []);
 
   // Cleanup polling on unmount
   useEffect(() => {
@@ -896,27 +876,26 @@ function PaidMintingInterface() {
     switch (state) {
       case 'checking-rns':
         return {
-          title: 'CHECKING ARNS OWNERSHIP',
-          message: 'Verifying your ARNS (Arweave Name Service) ownership...',
+          title: 'CHECKING WALLET',
+          message: 'Verifying your wallet...',
           messageColor: 'text-yellow-400',
           showControls: false
         };
       
       case 'rns-required':
+        // This state should not be reached anymore, but keep it for safety
         return {
-          title: 'ARNS OWNERSHIP REQUIRED',
-          message: 'This mint is exclusive to ARNS (Arweave Name Service) owners. Please visit arns.app to purchase an ARNS name.',
-          messageColor: 'text-red-400',
-          showControls: false
+          title: 'PUBLIC MINTING AVAILABLE',
+          message: 'Anyone can mint now! Connect your wallet to get started.',
+          messageColor: 'text-[#fcee0a]',
+          showControls: true
         };
       
       case 'quantity-selection':
         return {
           title: scrambledBuyText,
-          message: connected && activeAddress && rnsName ? 
-            `Welcome ${rnsName}! Select quantity (0.5 WAR per NFT)` : 
-            connected && activeAddress ? 
-            `Select quantity (0.5 WAR per NFT)` : 
+          message: connected && activeAddress ?
+            `Select quantity (1 WAR per NFT)` :
             `Connect wallet to select quantity and mint`,
           messageColor: connected && activeAddress ? 'text-[#fcee0a]' : 'text-red-400',
           showControls: connected && activeAddress
@@ -1028,7 +1007,7 @@ function PaidMintingInterface() {
                 }}
               />
               <p className="[font-family:'Space_Grotesk',Helvetica] font-normal text-[#c4c4c4] text-sm sm:text-base tracking-[1.20px]">
-                0.5 WAR per NFT for  ARNS Owners Only
+                Public Minting Now Available
               </p>
             </div>
           </div>
@@ -1051,6 +1030,8 @@ function PaidMintingInterface() {
                   </div>
                 </div>
               )}
+
+            
 
               {/* Quantity Slider */}
               {state === 'quantity-selection' && connected && activeAddress && (
@@ -1203,26 +1184,26 @@ function PaidMintingInterface() {
                 </div>
               )}
 
-              {/* RNS Required Message */}
+              {/* RNS Required Message - Now allows continuation */}
               {state === 'rns-required' && (
                 <div className="w-full max-w-md space-y-4">
-                  <div className="bg-red-900/20 border border-red-500/30 rounded-lg p-6 text-center space-y-4">
-                    <div className="w-16 h-16 mx-auto bg-red-500/20 rounded-full flex items-center justify-center">
-                      <AlertCircle className="w-8 h-8 text-red-400" />
+                  <div className="bg-[#fcee0a]/10 border border-[#fcee0a]/30 rounded-lg p-6 text-center space-y-4">
+                    <div className="w-16 h-16 mx-auto bg-[#fcee0a]/20 rounded-full flex items-center justify-center">
+                      <AlertCircle className="w-8 h-8 text-[#fcee0a]" />
                     </div>
                     
                     <div>
-                      <h3 className="text-lg font-bold text-red-400 mb-2">
-                        ARNS Ownership Required
+                      <h3 className="text-lg font-bold text-[#fcee0a] mb-2">
+                        🎉 Public Minting Available!
                       </h3>
                       <p className="text-gray-300 text-sm leading-relaxed">
-                        This mint is exclusive to ARNS (Arweave Name Service) owners. 
-                        You need to own an ARNS name to participate in this mint.
+                        Anyone can mint now! No ARNS name required.
+                        Continue to select your quantity and mint your MEKAID NFTs.
                       </p>
                     </div>
                     
                     <button
-                      onClick={() => window.open('https://arns.app', '_blank')}
+                      onClick={() => setState('quantity-selection')}
                       className="relative w-full h-12 group"
                     >
                       <img
@@ -1236,7 +1217,7 @@ function PaidMintingInterface() {
                         src="/subtract.svg"
                       />
                       <div className="absolute inset-0 flex items-center justify-center [font-family:'Space_Grotesk',Helvetica] font-bold text-white text-sm tracking-wider uppercase">
-                        Visit ARNS.APP
+                        Continue to Mint
                       </div>
                     </button>
                   </div>
@@ -1267,7 +1248,7 @@ function PaidMintingInterface() {
               </div>
             </button>
 
-            {/* Main Action Button */}
+            {/* Main Action Button - Only show for non-phase2-closed states */}
             {(state === 'idle' || state === 'error' || state === 'quantity-selection' || state === 'rns-required') && (
               <button 
                 onClick={state === 'quantity-selection' && connected && activeAddress ? handleCreateSession : () => {
@@ -1279,10 +1260,8 @@ function PaidMintingInterface() {
                       setState('error');
                     }
                   } else if (state === 'rns-required') {
-                    // Retry RNS check
-                    if (activeAddress) {
-                      checkRNSOwnership(activeAddress);
-                    }
+                    // Go directly to quantity selection for public minting
+                    setState('quantity-selection');
                   } else {
                     setState('quantity-selection');
                   }
@@ -1309,10 +1288,10 @@ function PaidMintingInterface() {
                       Loading...
                     </div>
                   ) : (
-                    state === 'quantity-selection' ? 
-                      (connected && activeAddress ? 'MINT NOW ' : 'Connect Wallet') : 
-                    state === 'rns-required' ? 
-                      'Retry ARNS Check' : 
+                    state === 'quantity-selection' ?
+                      (connected && activeAddress ? 'MINT NOW ' : 'Connect Wallet') :
+                    state === 'rns-required' ?
+                      'Continue to Mint' :
                       'Start Purchase'
                   )}
                 </div>
